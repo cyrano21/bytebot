@@ -1,0 +1,185 @@
+model_list:
+  # ============================================================
+  # Modèles Ollama locaux (ACTIVÉS - localhost:11434)
+  # ============================================================
+  - model_name: ollama-qwen3-30b
+    litellm_params:
+      model: ollama/qwen3:30b
+      api_base: http://host.docker.internal:11434
+      drop_params: true
+
+  - model_name: ollama-gemma3-12b
+    litellm_params:
+      model: ollama/gemma3:12b
+      api_base: http://host.docker.internal:11434
+      drop_params: true
+
+  - model_name: ollama-gemma3-27b
+    litellm_params:
+      model: ollama/gemma3:27b
+      api_base: http://host.docker.internal:11434
+      drop_params: true
+
+  - model_name: ollama-llama3-1-8b
+    litellm_params:
+      model: ollama/llama3.1:8b
+      api_base: http://host.docker.internal:11434
+      drop_params: true
+
+  - model_name: ollama-deepseek-r1-14b
+    litellm_params:
+      model: ollama/deepseek-r1:14b
+      api_base: http://host.docker.internal:11434
+      drop_params: true
+
+  - model_name: ollama-deepseek-r1-32b
+    litellm_params:
+      model: ollama/deepseek-r1:32b
+      api_base: http://host.docker.internal:11434
+      drop_params: true
+
+  - model_name: ollama-qwq
+    litellm_params:
+      model: ollama/qwq:latest
+      api_base: http://host.docker.internal:11434
+      drop_params: true
+
+  - model_name: ollama-magistral
+    litellm_params:
+      model: ollama/huihui_ai/magistral-abliterated:latest
+      api_base: http://host.docker.internal:11434
+      drop_params: true
+
+  # ============================================================
+  # Modèles Groq (ultra-rapides, gratuits)
+  # ============================================================
+  - model_name: groq-llama-3.3
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      api_key: os.environ/GROQ_API_KEY
+      drop_params: true
+  - model_name: groq-llama-3.1-8b
+    litellm_params:
+      model: groq/llama-3.1-8b-instant
+      api_key: os.environ/GROQ_API_KEY
+      drop_params: true
+  - model_name: groq-qwen-3.2b
+    litellm_params:
+      model: groq/qwen/qwen3-32b
+      api_key: os.environ/GROQ_API_KEY
+      drop_params: true
+
+  # Modèles Mistral (gratuits et rapides)
+  - model_name: mistral-small
+    litellm_params:
+      model: mistral/mistral-small-latest
+      api_key: os.environ/MISTRAL_API_KEY
+      drop_params: true
+  - model_name: mistral-medium
+    litellm_params:
+      model: mistral/mistral-medium-latest
+      api_key: os.environ/MISTRAL_API_KEY
+      drop_params: true
+  - model_name: mistral-large
+    litellm_params:
+      model: mistral/mistral-large-latest
+      api_key: os.environ/MISTRAL_API_KEY
+      drop_params: true
+
+  # Modèles OpenRouter gratuits
+  - model_name: llama-3.1-8b-free
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.1-8b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      drop_params: true
+  - model_name: qwen2-vl-free
+    litellm_params:
+      model: openrouter/qwen/qwen-2-vl-7b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      drop_params: true
+
+  # Modèles OpenRouter premium
+  - model_name: openrouter-claude
+    litellm_params:
+      model: openrouter/anthropic/claude-3.5-sonnet:beta
+      api_key: os.environ/OPENROUTER_API_KEY
+      drop_params: true
+  - model_name: openrouter-gpt
+    litellm_params:
+      model: openrouter/openai/gpt-4o
+      api_key: os.environ/OPENROUTER_API_KEY
+      drop_params: true
+
+  # Modèles Ollama Cloud (DÉSACTIVÉS - URL invalide)
+  # - model_name: ollama-cloud-llama2
+  #   litellm_params:
+  #     model: ollama/llama2
+  #     api_base: https://ollama.example.com
+  #     drop_params: true
+  # - model_name: ollama-cloud-mistral
+  #   litellm_params:
+  #     model: ollama/mistral
+  #     api_base: https://ollama.example.com
+  #     drop_params: true
+
+  # Modèles Google Gemini (gratuits)
+  - model_name: gemini-2.0-flash
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: os.environ/GEMINI_API_KEY
+      drop_params: true
+  - model_name: gemini-1.5-pro
+    litellm_params:
+      model: gemini/gemini-1.5-pro
+      api_key: os.environ/GEMINI_API_KEY
+      drop_params: true
+
+  # Modèles Hugging Face (gratuits avec limite)
+  - model_name: huggingface-mistral-7b
+    litellm_params:
+      model: huggingface/mistralai/Mistral-7B-Instruct-v0.1
+      api_key: os.environ/HUGGINGFACE_API_KEY
+      drop_params: true
+  - model_name: huggingface-llama-2-7b
+    litellm_params:
+      model: huggingface/meta-llama/Llama-2-7b-chat-hf
+      api_key: os.environ/HUGGINGFACE_API_KEY
+      drop_params: true
+
+  # Modèles DeepSeek (gratuits et puissants)
+  - model_name: deepseek-chat
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+      drop_params: true
+  - model_name: deepseek-coder
+    litellm_params:
+      model: deepseek/deepseek-coder
+      api_key: os.environ/DEEPSEEK_API_KEY
+      drop_params: true
+
+  # Modèles xAI Grok (gratuits et ultra-puissants)
+  - model_name: grok-2
+    litellm_params:
+      model: xai/grok-2
+      api_key: os.environ/XAI_API_KEY
+      drop_params: true
+  - model_name: grok-3
+    litellm_params:
+      model: xai/grok-3
+      api_key: os.environ/XAI_API_KEY
+      drop_params: true
+
+  # Modèles Kimi K2 (gratuits et multilingues)
+  - model_name: kimi-k2
+    litellm_params:
+      model: openrouter/moonshot/kimi-k2
+      api_key: os.environ/OPENROUTER_API_KEY
+      drop_params: true
+
+  # NOTE: Ollama Cloud et autres services à configurer si nécessaire
+  # - Ajouter api_base pour Ollama Cloud quand disponible
+  # - Ajouter les paramètres pour Hugging Face si nécessaire
+
+litellm_settings:
+  drop_params: true

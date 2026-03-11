@@ -1,0 +1,23 @@
+# Configuration des modèles pour Bytebot
+
+[models]
+# Modèles Ollama locaux
+ollama_qwen3-30b = "qwen3:30b"
+ollama_gemma3-12b = "gemma3:12b"
+ollama_gemma3-27b = "gemma3:27b"
+ollama_llama3_1-8b = "llama3.1:8b"
+ollama_deepseek-r1-14b = "deepseek-r1:14b"
+ollama_deepseek-r1-32b = "deepseek-r1:32b"
+ollama_qwq = "qwq:latest"
+ollama_magistral = "huihui_ai/magistral-abliterated:latest"
+
+# Modèles OpenRouter gratuits
+openrouter_gemma3-7b = "google/gemma-3-7b-it:free"
+openrouter_llama3_1-8b = "meta-llama/llama-3.1-8b-instruct:free"
+openrouter_llama3_2-3b = "meta-llama/llama-3.2-3b-instruct:free"
+openrouter_qwen2_5-7b = "qwen/qwen-2.5-7b-instruct:free"
+openrouter_qwen2_5-coder-7b = "qwen/qwen-2.5-coder-7b-instruct:free"
+openrouter_phi4-14b = "microsoft/phi-4:free"
+
+[default]
+model = "ollama_qwen3-30b"

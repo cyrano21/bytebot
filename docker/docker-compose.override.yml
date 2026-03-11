@@ -1,0 +1,12 @@
+services:
+  bytebot-desktop:
+    build:
+      context: ..
+      dockerfile: docker/bytebot-desktop.Dockerfile
+    # Mount the local models configuration
+    volumes:
+      - ../models.toml:/app/models.toml
+      - ../.env:/app/.env
+    # Add environment variables
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
