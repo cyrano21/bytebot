@@ -45,8 +45,6 @@ services:
     restart: unless-stopped
     ports:
       - "9991:9991"
-    env_file:
-      - ../packages/bytebot-agent/.env
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/bytebotdb
       - BYTEBOT_DESKTOP_BASE_URL=http://bytebot-desktop:9990
@@ -71,6 +69,14 @@ services:
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     volumes:
       - ../packages/bytebot-llm-proxy/litellm-config.yaml:/app/config.yaml
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - XAI_API_KEY=${XAI_API_KEY:-}
     networks:
       - bytebot-network
 
