@@ -86,20 +86,15 @@ model_list:
       api_key: os.environ/MISTRAL_API_KEY
       drop_params: true
 
-  # Modèles OpenRouter gratuits vérifiés
-  - model_name: openrouter-step-3-5-flash-free
+  # Modèles OpenRouter gratuits vérifiés pour Bytebot (vision)
+  - model_name: openrouter-nemotron-vl-free
     litellm_params:
-      model: openrouter/stepfun/step-3.5-flash:free
+      model: openrouter/nvidia/nemotron-nano-12b-v2-vl:free
       api_key: os.environ/OPENROUTER_API_KEY
       drop_params: true
-  - model_name: openrouter-nemotron-nano-free
+  - model_name: openrouter-mistral-small-vision-free
     litellm_params:
-      model: openrouter/nvidia/nemotron-nano-9b-v2:free
-      api_key: os.environ/OPENROUTER_API_KEY
-      drop_params: true
-  - model_name: openrouter-nemotron-super-free
-    litellm_params:
-      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
+      model: openrouter/mistralai/mistral-small-3.1-24b-instruct:free
       api_key: os.environ/OPENROUTER_API_KEY
       drop_params: true
 
