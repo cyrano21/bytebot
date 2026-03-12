@@ -78,7 +78,7 @@ export function VncViewer({ viewOnly = true }: VncViewerProps) {
         if (viewerState === "loading") {
           setStatusMessage("Apercu du bureau charge en attendant la vue live.");
         }
-      } catch (error) {
+      } catch {
         if (isCancelled) return;
 
         setStatusMessage("Connexion au bureau virtuel en cours...");
