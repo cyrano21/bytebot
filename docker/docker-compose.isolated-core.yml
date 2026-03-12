@@ -1,0 +1,85 @@
+name: bytebot-core
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bytebot-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-bytebotdb}
+    networks:
+      - bytebot-core-network
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  bytebot-llm-proxy:
+    build:
+      context: ../packages/
+      dockerfile: bytebot-llm-proxy/Dockerfile
+    container_name: bytebot-llm-proxy
+    restart: unless-stopped
+    ports:
+      - "40001:4000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    networks:
+      - bytebot-core-network
+
+  bytebot-agent:
+    build:
+      context: ../
+      dockerfile: packages/bytebot-agent/Dockerfile
+    image: ghcr.io/bytebot-ai/bytebot-agent:edge
+    container_name: bytebot-agent
+    restart: unless-stopped
+    ports:
+      - "9991:9991"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-bytebotdb}}
+      - BYTEBOT_DESKTOP_BASE_URL=${BYTEBOT_DESKTOP_BASE_URL:?Set the remote desktop worker base URL}
+      - BYTEBOT_LLM_PROXY_URL=${BYTEBOT_LLM_PROXY_URL:-http://bytebot-llm-proxy:4000}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - PORT=9991
+    depends_on:
+      - postgres
+      - bytebot-llm-proxy
+    networks:
+      - bytebot-core-network
+
+  bytebot-ui:
+    build:
+      context: ../packages/
+      dockerfile: bytebot-ui/Dockerfile
+      args:
+        - BYTEBOT_AGENT_BASE_URL=${BYTEBOT_AGENT_BASE_URL:-http://bytebot-agent:9991}
+        - BYTEBOT_DESKTOP_VNC_URL=${BYTEBOT_DESKTOP_VNC_URL:?Set the remote desktop worker VNC URL}
+    image: ghcr.io/bytebot-ai/bytebot-ui:edge
+    container_name: bytebot-ui
+    restart: unless-stopped
+    ports:
+      - "9992:9992"
+    environment:
+      - NODE_ENV=production
+      - BYTEBOT_AGENT_BASE_URL=${BYTEBOT_AGENT_BASE_URL:-http://bytebot-agent:9991}
+      - BYTEBOT_DESKTOP_VNC_URL=${BYTEBOT_DESKTOP_VNC_URL:?Set the remote desktop worker VNC URL}
+      - PORT=9992
+    depends_on:
+      - bytebot-agent
+    networks:
+      - bytebot-core-network
+
+networks:
+  bytebot-core-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
