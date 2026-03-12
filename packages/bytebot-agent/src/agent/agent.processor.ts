@@ -275,6 +275,7 @@ export class AgentProcessor {
       '429',
       'unknown model',
       'does not exist',
+      'provider returned error',
       '503',
       '502',
       '504',
@@ -349,6 +350,9 @@ export class AgentProcessor {
       scope = 'provider';
       cooldownMs = Math.max(retryAfterMs ?? 0, 15 * 60 * 1000);
     } else if (status === 429 || message.includes('rate limit')) {
+      scope = 'model';
+      cooldownMs = Math.max(retryAfterMs ?? 0, 60 * 1000);
+    } else if (status === 400 && message.includes('provider returned error')) {
       scope = 'model';
       cooldownMs = Math.max(retryAfterMs ?? 0, 60 * 1000);
     } else if (
