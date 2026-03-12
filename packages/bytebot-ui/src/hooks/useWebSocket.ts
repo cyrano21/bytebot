@@ -17,53 +17,67 @@ export function useWebSocket({
 }: UseWebSocketProps = {}) {
   const socketRef = useRef<Socket | null>(null);
   const currentTaskIdRef = useRef<string | null>(null);
+  const handlersRef = useRef<UseWebSocketProps>({});
+
+  useEffect(() => {
+    handlersRef.current = {
+      onTaskUpdate,
+      onNewMessage,
+      onTaskCreated,
+      onTaskDeleted,
+    };
+  }, [onTaskUpdate, onNewMessage, onTaskCreated, onTaskDeleted]);
 
   const connect = useCallback(() => {
-    if (socketRef.current?.connected) {
+    if (socketRef.current) {
       return socketRef.current;
     }
 
-    // Connect to the WebSocket server
     const socket = io({
       path: "/api/proxy/tasks",
-      transports: ["websocket"],
+      transports: ["polling", "websocket"],
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      timeout: 20000,
     });
 
     socket.on("connect", () => {
       console.log("Connected to WebSocket server");
     });
 
-    socket.on("disconnect", () => {
-      console.log("Disconnected from WebSocket server");
+    socket.on("disconnect", (reason) => {
+      console.log("Disconnected from WebSocket server", reason);
+    });
+
+    socket.on("connect_error", (error) => {
+      console.error("WebSocket connection error:", error.message);
     });
 
     socket.on("task_updated", (task: Task) => {
       console.log("Task updated:", task);
-      onTaskUpdate?.(task);
+      handlersRef.current.onTaskUpdate?.(task);
     });
 
     socket.on("new_message", (message: Message) => {
       console.log("New message:", message);
-      onNewMessage?.(message);
+      handlersRef.current.onNewMessage?.(message);
     });
 
     socket.on("task_created", (task: Task) => {
       console.log("Task created:", task);
-      onTaskCreated?.(task);
+      handlersRef.current.onTaskCreated?.(task);
     });
 
     socket.on("task_deleted", (taskId: string) => {
       console.log("Task deleted:", taskId);
-      onTaskDeleted?.(taskId);
+      handlersRef.current.onTaskDeleted?.(taskId);
     });
 
     socketRef.current = socket;
     return socket;
-  }, [onTaskUpdate, onNewMessage, onTaskCreated, onTaskDeleted]);
+  }, []);
 
   const joinTask = useCallback(
     (taskId: string) => {
@@ -89,6 +103,7 @@ export function useWebSocket({
 
   const disconnect = useCallback(() => {
     if (socketRef.current) {
+      socketRef.current.removeAllListeners();
       socketRef.current.disconnect();
       socketRef.current = null;
       currentTaskIdRef.current = null;
