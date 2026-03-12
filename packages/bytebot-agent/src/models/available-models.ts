@@ -52,6 +52,72 @@ function isLikelyGeminiApiKey(apiKey?: string | null): boolean {
   return /^AIza[0-9A-Za-z\-_]{20,}$/.test(normalizedKey);
 }
 
+function hasNonEmptyApiKey(apiKey?: string | null): boolean {
+  return Boolean(apiKey?.trim());
+}
+
+function isLikelyOpenRouterApiKey(apiKey?: string | null): boolean {
+  const normalizedKey = apiKey?.trim();
+  return Boolean(normalizedKey && normalizedKey.startsWith('sk-or-v1-'));
+}
+
+function isLikelyGroqApiKey(apiKey?: string | null): boolean {
+  const normalizedKey = apiKey?.trim();
+  return Boolean(normalizedKey && normalizedKey.startsWith('gsk_'));
+}
+
+function isLikelyHuggingFaceApiKey(apiKey?: string | null): boolean {
+  const normalizedKey = apiKey?.trim();
+  return Boolean(normalizedKey && normalizedKey.startsWith('hf_'));
+}
+
+function isLikelyDeepSeekApiKey(apiKey?: string | null): boolean {
+  const normalizedKey = apiKey?.trim();
+  return Boolean(normalizedKey && normalizedKey.startsWith('sk-'));
+}
+
+function hasRuntimeSupportForProxyModel(modelName: string): boolean {
+  const normalizedName = modelName.toLowerCase();
+
+  if (normalizedName.startsWith('ollama-')) {
+    return true;
+  }
+
+  if (normalizedName.startsWith('groq-')) {
+    return isLikelyGroqApiKey(process.env.GROQ_API_KEY);
+  }
+
+  if (normalizedName.startsWith('mistral-')) {
+    return hasNonEmptyApiKey(process.env.MISTRAL_API_KEY);
+  }
+
+  if (normalizedName.startsWith('gemini-')) {
+    return isLikelyGeminiApiKey(process.env.GEMINI_API_KEY);
+  }
+
+  if (normalizedName.startsWith('huggingface-')) {
+    return isLikelyHuggingFaceApiKey(process.env.HUGGINGFACE_API_KEY);
+  }
+
+  if (normalizedName.startsWith('deepseek-')) {
+    return isLikelyDeepSeekApiKey(process.env.DEEPSEEK_API_KEY);
+  }
+
+  if (normalizedName.startsWith('grok-')) {
+    return hasNonEmptyApiKey(process.env.XAI_API_KEY);
+  }
+
+  if (
+    normalizedName.startsWith('openrouter-') ||
+    normalizedName.startsWith('kimi-') ||
+    normalizedName.endsWith('-free')
+  ) {
+    return isLikelyOpenRouterApiKey(process.env.OPENROUTER_API_KEY);
+  }
+
+  return true;
+}
+
 function getModelKey(model: BytebotAgentModel): string {
   return `${model.provider}:${model.name}`;
 }
@@ -319,27 +385,33 @@ async function getInstalledOllamaModels(): Promise<Set<string> | null> {
   return null;
 }
 
-async function filterUnavailableOllamaModels(
+async function filterUnavailableProxyModels(
   models: BytebotAgentModel[],
 ): Promise<BytebotAgentModel[]> {
   const configuredOllamaAliases = getConfiguredOllamaAliasMap();
-  if (configuredOllamaAliases.size === 0) {
-    return models;
-  }
-
-  const installedOllamaModels = await getInstalledOllamaModels();
-  if (!installedOllamaModels) {
-    return models;
-  }
+  const installedOllamaModels =
+    configuredOllamaAliases.size > 0 ? await getInstalledOllamaModels() : null;
 
   return models.filter((model) => {
-    if (model.provider !== 'proxy' || !model.name.startsWith('ollama-')) {
+    if (model.provider !== 'proxy') {
       return true;
+    }
+
+    if (!hasRuntimeSupportForProxyModel(model.name)) {
+      return false;
+    }
+
+    if (!model.name.startsWith('ollama-')) {
+      return true;
+    }
+
+    if (!installedOllamaModels) {
+      return false;
     }
 
     const actualModelName = configuredOllamaAliases.get(model.name);
     if (!actualModelName) {
-      return true;
+      return false;
     }
 
     return installedOllamaModels.has(actualModelName);
@@ -408,7 +480,7 @@ export async function getAvailableModels(): Promise<BytebotAgentModel[]> {
   const configuredModels = getConfiguredModels();
   const proxyModels = await getProxyModels();
   const proxyReachable = proxyModels.length > 0;
-  const eligibleModels = await filterUnavailableOllamaModels(
+  const eligibleModels = await filterUnavailableProxyModels(
     dedupeModels([
       ...proxyModels,
       ...configuredModels.filter(
@@ -417,9 +489,25 @@ export async function getAvailableModels(): Promise<BytebotAgentModel[]> {
     ]),
   );
 
-  return sortModels(
+  const availableModels = sortModels(
     eligibleModels.filter((model) => !isTemporarilyUnavailable(model)),
   );
+  const defaultModel = selectDefaultModel(availableModels);
+
+  if (!defaultModel) {
+    return availableModels;
+  }
+
+  return [
+    defaultModel,
+    ...availableModels.filter(
+      (model) =>
+        !(
+          model.provider === defaultModel.provider &&
+          model.name === defaultModel.name
+        ),
+    ),
+  ];
 }
 
 export async function getDefaultModel(): Promise<BytebotAgentModel | null> {
