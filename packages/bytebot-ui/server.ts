@@ -9,7 +9,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const dev = process.env.NODE_ENV !== "production";
-const hostname = process.env.HOSTNAME || "localhost";
+const hostname = process.env.HOST || "0.0.0.0";
 const port = parseInt(process.env.PORT || "9992", 10);
 
 // Backend URLs
