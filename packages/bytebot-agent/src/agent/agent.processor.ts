@@ -850,6 +850,10 @@ export class AgentProcessor {
         }
       }
 
+      const browserTaskHistory = this.isBrowserTask(task.description)
+        ? await this.messagesService.findEvery(taskId)
+        : null;
+
       const hasTextResponse = messageContentBlocks.some(
         (block) => block.type === MessageContentType.Text,
       );
@@ -859,9 +863,10 @@ export class AgentProcessor {
       if (!hasActionableFollowUp) {
         if (hasTextResponse) {
           if (this.isBrowserTask(task.description)) {
+            const browserMessages = browserTaskHistory ?? messages;
             if (
-              !this.hasComputerAutomationEvidence(messages) &&
-              !this.hasMarker(messages, BROWSER_TOOL_REMINDER_MARKER)
+              !this.hasComputerAutomationEvidence(browserMessages) &&
+              !this.hasMarker(browserMessages, BROWSER_TOOL_REMINDER_MARKER)
             ) {
               this.logger.warn(
                 `Task ${taskId} produced text without browser actions; requesting an explicit computer-tool step`,
@@ -909,12 +914,12 @@ export class AgentProcessor {
       }
 
       if (this.isBrowserTask(task.description) && !setTaskStatusToolUseBlock) {
+        const browserMessages = browserTaskHistory ?? messages;
         const computerActionCount = this.countComputerToolUseBlocks([
-          ...this.flattenMessageContent(messages),
-          ...messageContentBlocks,
+          ...this.flattenMessageContent(browserMessages),
         ]);
         const hasCompletionReminder = this.hasMarker(
-          messages,
+          browserMessages,
           BROWSER_COMPLETION_REMINDER_MARKER,
         );
 
