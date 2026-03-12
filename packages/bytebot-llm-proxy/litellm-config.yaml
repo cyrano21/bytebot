@@ -86,7 +86,14 @@ model_list:
       api_key: os.environ/MISTRAL_API_KEY
       drop_params: true
 
-  # Modèles OpenRouter gratuits vérifiés pour Bytebot (vision)
+  # Modèles OpenRouter pour Bytebot (vision + tools)
+  - model_name: openrouter-healer-alpha
+    litellm_params:
+      model: openrouter/healer-alpha
+      api_key: os.environ/OPENROUTER_API_KEY
+      drop_params: true
+
+  # Modèles OpenRouter gratuits de secours
   - model_name: openrouter-nemotron-vl-free
     litellm_params:
       model: openrouter/nvidia/nemotron-nano-12b-v2-vl:free
