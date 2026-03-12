@@ -87,9 +87,9 @@ model_list:
       drop_params: true
 
   # Modèles OpenRouter pour Bytebot (vision + tools)
-  - model_name: openrouter-healer-alpha
+  - model_name: healer-alpha
     litellm_params:
-      model: openrouter/healer-alpha
+      model: openrouter/openrouter/healer-alpha
       api_key: os.environ/OPENROUTER_API_KEY
       drop_params: true
 
