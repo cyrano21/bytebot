@@ -52,6 +52,10 @@ import {
 const MAX_RETRYABLE_SERVICE_ATTEMPTS = 5;
 const BROWSER_BOOTSTRAP_MARKER = '[BYTEBOT_BROWSER_BOOTSTRAP]';
 const BROWSER_TOOL_REMINDER_MARKER = '[BYTEBOT_BROWSER_TOOL_REQUIRED]';
+const BROWSER_COMPLETION_REMINDER_MARKER =
+  '[BYTEBOT_BROWSER_COMPLETION_REQUIRED]';
+const MAX_BROWSER_TOOL_ACTIONS_BEFORE_COMPLETION_REMINDER = 10;
+const MAX_BROWSER_TOOL_ACTIONS_BEFORE_REVIEW = 16;
 
 @Injectable()
 export class AgentProcessor {
@@ -155,6 +159,25 @@ export class AgentProcessor {
         )
       );
     });
+  }
+
+  private countComputerToolUseBlocks(blocks: MessageContentBlock[]): number {
+    return blocks.reduce((count, block) => {
+      if (isComputerToolUseContentBlock(block)) {
+        return count + 1;
+      }
+
+      if (block.type === MessageContentType.UserAction) {
+        return (
+          count +
+          (block.content?.filter((nestedBlock) =>
+            isComputerToolUseContentBlock(nestedBlock),
+          ).length ?? 0)
+        );
+      }
+
+      return count;
+    }, 0);
   }
 
   private buildBrowserBootstrapBlocks(
@@ -883,6 +906,55 @@ export class AgentProcessor {
           content: messageContentBlocks,
         });
         return;
+      }
+
+      if (this.isBrowserTask(task.description) && !setTaskStatusToolUseBlock) {
+        const computerActionCount = this.countComputerToolUseBlocks([
+          ...this.flattenMessageContent(messages),
+          ...messageContentBlocks,
+        ]);
+        const hasCompletionReminder = this.hasMarker(
+          messages,
+          BROWSER_COMPLETION_REMINDER_MARKER,
+        );
+
+        if (
+          computerActionCount >= MAX_BROWSER_TOOL_ACTIONS_BEFORE_REVIEW &&
+          hasCompletionReminder
+        ) {
+          const errorMessage = `Browser task exceeded ${computerActionCount} computer actions without reaching a terminal status`;
+          this.logger.warn(`Task ${taskId}: ${errorMessage}`);
+          await this.moveTaskToReview(taskId, errorMessage, {
+            content: messageContentBlocks,
+            computerActionCount,
+          });
+          return;
+        }
+
+        if (
+          computerActionCount >=
+            MAX_BROWSER_TOOL_ACTIONS_BEFORE_COMPLETION_REMINDER &&
+          !hasCompletionReminder
+        ) {
+          this.logger.warn(
+            `Task ${taskId} exceeded browser action budget (${computerActionCount}); requesting explicit completion`,
+          );
+          await this.messagesService.create({
+            content: [
+              {
+                type: MessageContentType.Text,
+                text: `${BROWSER_COMPLETION_REMINDER_MARKER} The requested browser state may already be visible. If the user's stop condition is already satisfied, your next response must call set_task_status with status "completed" and a short summary. Only continue using computer_* tools if a concrete page change is still required.`,
+              },
+            ],
+            role: Role.USER,
+            taskId,
+          });
+
+          if (this.isProcessing) {
+            setImmediate(() => this.runIteration(taskId));
+          }
+          return;
+        }
       }
 
       // Schedule the next iteration without blocking
