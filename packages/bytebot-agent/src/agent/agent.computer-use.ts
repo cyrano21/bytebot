@@ -663,6 +663,42 @@ export async function dismissTransientUi(): Promise<void> {
   }
 }
 
+function sleep(durationMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, durationMs));
+}
+
+function extractFirstUrl(text: string): string | null {
+  const match = text.match(/https?:\/\/[^\s)]+/i);
+  return match ? match[0] : null;
+}
+
+function buildResearchTarget(taskDescription: string): {
+  mode: 'url' | 'search';
+  targetUrl: string;
+  query: string;
+} {
+  const directUrl = extractFirstUrl(taskDescription);
+  if (directUrl) {
+    return {
+      mode: 'url',
+      targetUrl: directUrl,
+      query: directUrl,
+    };
+  }
+
+  const query = taskDescription.replace(/\s+/g, ' ').trim() || 'web research';
+  const searchQuery =
+    /tiktok/i.test(query) && !/site:/i.test(query)
+      ? `${query} site:tiktok.com`
+      : query;
+
+  return {
+    mode: 'search',
+    targetUrl: `https://www.bing.com/search?q=${encodeURIComponent(searchQuery)}`,
+    query: searchQuery,
+  };
+}
+
 export async function resetFirefoxWorkspace(): Promise<void> {
   await postComputerAction({
     action: 'application',
@@ -693,4 +729,61 @@ export async function resetFirefoxWorkspace(): Promise<void> {
   });
 
   await new Promise((resolve) => setTimeout(resolve, 700));
+}
+
+export async function bootstrapFirefoxResearch(taskDescription: string): Promise<{
+  mode: 'url' | 'search';
+  targetUrl: string;
+  query: string;
+  screenshot?: string;
+}> {
+  const target = buildResearchTarget(taskDescription);
+
+  await resetFirefoxWorkspace();
+  await dismissTransientUi();
+  await sleep(300);
+
+  await postComputerAction({
+    action: 'press_keys',
+    keys: ['LeftControl'],
+    press: 'down',
+  });
+  await sleep(100);
+  await postComputerAction({
+    action: 'type_keys',
+    keys: ['L'],
+  });
+  await sleep(100);
+  await postComputerAction({
+    action: 'press_keys',
+    keys: ['LeftControl'],
+    press: 'up',
+  });
+  await sleep(180);
+
+  await postComputerAction({
+    action: 'paste_text',
+    text: target.targetUrl,
+  });
+  await sleep(120);
+
+  await postComputerAction({
+    action: 'type_keys',
+    keys: ['Enter'],
+  });
+  await sleep(2200);
+  await dismissTransientUi();
+  await sleep(350);
+
+  let currentScreenshot: string | undefined;
+  try {
+    currentScreenshot = await screenshot();
+  } catch {
+    currentScreenshot = undefined;
+  }
+
+  return {
+    ...target,
+    ...(currentScreenshot ? { screenshot: currentScreenshot } : {}),
+  };
 }

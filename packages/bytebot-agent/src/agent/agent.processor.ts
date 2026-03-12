@@ -40,8 +40,8 @@ import {
 import { SummariesService } from '../summaries/summaries.service';
 import {
   dismissTransientUi,
+  bootstrapFirefoxResearch,
   handleComputerToolUse,
-  resetFirefoxWorkspace,
 } from './agent.computer-use';
 import { ProxyService } from '../proxy/proxy.service';
 import {
@@ -50,6 +50,8 @@ import {
 } from '../models/available-models';
 
 const MAX_RETRYABLE_SERVICE_ATTEMPTS = 5;
+const BROWSER_BOOTSTRAP_MARKER = '[BYTEBOT_BROWSER_BOOTSTRAP]';
+const BROWSER_TOOL_REMINDER_MARKER = '[BYTEBOT_BROWSER_TOOL_REQUIRED]';
 
 @Injectable()
 export class AgentProcessor {
@@ -117,6 +119,71 @@ export class AgentProcessor {
     return /firefox|browser|google|internet|website|web site|site web|navigate|url|search|recherche|tiktok|shopify|oberlo/i.test(
       description,
     );
+  }
+
+  private flattenMessageContent(messages: Message[]): MessageContentBlock[] {
+    return messages.flatMap(
+      (message) => (message.content as MessageContentBlock[]) ?? [],
+    );
+  }
+
+  private textBlocks(messages: Message[]): TextContentBlock[] {
+    return this.flattenMessageContent(messages).filter(
+      (block): block is TextContentBlock =>
+        block.type === MessageContentType.Text,
+    );
+  }
+
+  private hasMarker(messages: Message[], marker: string): boolean {
+    return this.textBlocks(messages).some((block) => block.text.includes(marker));
+  }
+
+  private hasComputerAutomationEvidence(messages: Message[]): boolean {
+    return this.flattenMessageContent(messages).some((block) => {
+      if (
+        block.type === MessageContentType.ToolUse ||
+        block.type === MessageContentType.ToolResult ||
+        isComputerToolUseContentBlock(block)
+      ) {
+        return true;
+      }
+
+      return (
+        block.type === MessageContentType.UserAction &&
+        block.content?.some((nestedBlock) =>
+          isComputerToolUseContentBlock(nestedBlock),
+        )
+      );
+    });
+  }
+
+  private buildBrowserBootstrapBlocks(
+    bootstrapResult: Awaited<ReturnType<typeof bootstrapFirefoxResearch>>,
+  ): MessageContentBlock[] {
+    const intro =
+      bootstrapResult.mode === 'url'
+        ? `${BROWSER_BOOTSTRAP_MARKER} Firefox is open on ${bootstrapResult.targetUrl}. Continue from the live browser state.`
+        : `${BROWSER_BOOTSTRAP_MARKER} Firefox is open on Bing search results for: ${bootstrapResult.query}. Continue from the live browser state.`;
+
+    const blocks: MessageContentBlock[] = [
+      {
+        type: MessageContentType.Text,
+        text: `${intro} Use the available computer tools to inspect pages, gather evidence, and complete the task. Do not answer from memory.`,
+      },
+    ];
+
+    if (bootstrapResult.screenshot) {
+      blocks.push({
+        type: MessageContentType.Image,
+        source: {
+          type: 'base64',
+          media_type: 'image/png',
+          data: bootstrapResult.screenshot,
+        },
+      });
+    }
+
+    return blocks;
   }
 
   private async failTask(taskId: string, errorMessage: string) {
@@ -515,7 +582,17 @@ export class AgentProcessor {
             this.logger.log(
               `Resetting Firefox workspace before first browser iteration for task ${taskId}`,
             );
-            await resetFirefoxWorkspace();
+            const bootstrapResult =
+              await bootstrapFirefoxResearch(task.description);
+            const bootstrapBlocks = this.buildBrowserBootstrapBlocks(
+              bootstrapResult,
+            );
+            const persistedBootstrapMessage = await this.messagesService.create({
+              content: bootstrapBlocks,
+              role: Role.USER,
+              taskId,
+            });
+            messages.push(persistedBootstrapMessage);
           }
         } catch (error) {
           this.logger.warn(
@@ -754,6 +831,40 @@ export class AgentProcessor {
 
       if (!hasActionableFollowUp) {
         if (hasTextResponse) {
+          if (this.isBrowserTask(task.description)) {
+            if (
+              !this.hasComputerAutomationEvidence(messages) &&
+              !this.hasMarker(messages, BROWSER_TOOL_REMINDER_MARKER)
+            ) {
+              this.logger.warn(
+                `Task ${taskId} produced text without browser actions; requesting an explicit computer-tool step`,
+              );
+              await this.messagesService.create({
+                content: [
+                  {
+                    type: MessageContentType.Text,
+                    text: `${BROWSER_TOOL_REMINDER_MARKER} The browser is already open on a live page. Your next response must use at least one computer_* tool or set_task_status. Do not reply with analysis from memory.`,
+                  },
+                ],
+                role: Role.USER,
+                taskId,
+              });
+
+              if (this.isProcessing) {
+                setImmediate(() => this.runIteration(taskId));
+              }
+              return;
+            }
+
+            const errorMessage =
+              'Browser task ended with text only and no computer action';
+            this.logger.warn(`Task ${taskId}: ${errorMessage}`);
+            await this.moveTaskToReview(taskId, errorMessage, {
+              content: messageContentBlocks,
+            });
+            return;
+          }
+
           this.logger.log(
             `Task ${taskId} produced a terminal text response without follow-up tools; completing automatically`,
           );
