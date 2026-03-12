@@ -59,15 +59,14 @@ services:
       - bytebot-network
 
   bytebot-llm-proxy:
-    # Use the official LiteLLM image directly
+    build:
+      context: ../packages/
+      dockerfile: bytebot-llm-proxy/Dockerfile
     image: ghcr.io/berriai/litellm:main-stable
     container_name: bytebot-llm-proxy
     restart: unless-stopped
     ports:
       - "40001:4000"
-    command: ["--config", "/app/config.yaml", "--port", "4000"]
-    volumes:
-      - ../packages/bytebot-llm-proxy/litellm-config.yaml:/app/config.yaml
     environment:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
