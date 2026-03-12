@@ -86,27 +86,20 @@ model_list:
       api_key: os.environ/MISTRAL_API_KEY
       drop_params: true
 
-  # Modèles OpenRouter gratuits
-  - model_name: llama-3.1-8b-free
+  # Modèles OpenRouter gratuits vérifiés
+  - model_name: openrouter-step-3-5-flash-free
     litellm_params:
-      model: openrouter/meta-llama/llama-3.1-8b-instruct:free
+      model: openrouter/stepfun/step-3.5-flash:free
       api_key: os.environ/OPENROUTER_API_KEY
       drop_params: true
-  - model_name: qwen2-vl-free
+  - model_name: openrouter-nemotron-nano-free
     litellm_params:
-      model: openrouter/qwen/qwen-2-vl-7b-instruct:free
+      model: openrouter/nvidia/nemotron-nano-9b-v2:free
       api_key: os.environ/OPENROUTER_API_KEY
       drop_params: true
-
-  # Modèles OpenRouter premium
-  - model_name: openrouter-claude
+  - model_name: openrouter-nemotron-super-free
     litellm_params:
-      model: openrouter/anthropic/claude-3.5-sonnet:beta
-      api_key: os.environ/OPENROUTER_API_KEY
-      drop_params: true
-  - model_name: openrouter-gpt
-    litellm_params:
-      model: openrouter/openai/gpt-4o
+      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
       api_key: os.environ/OPENROUTER_API_KEY
       drop_params: true
 
@@ -168,13 +161,6 @@ model_list:
     litellm_params:
       model: xai/grok-3
       api_key: os.environ/XAI_API_KEY
-      drop_params: true
-
-  # Modèles Kimi K2 (gratuits et multilingues)
-  - model_name: kimi-k2
-    litellm_params:
-      model: openrouter/moonshot/kimi-k2
-      api_key: os.environ/OPENROUTER_API_KEY
       drop_params: true
 
   # NOTE: Ollama Cloud et autres services à configurer si nécessaire
