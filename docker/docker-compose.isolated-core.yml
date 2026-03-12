@@ -29,6 +29,13 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      # Coolify injects app-level envs into every service via env_file.
+      # Neutralize DB vars here so LiteLLM extras do not run Prisma
+      # migrations inside the proxy container at startup.
+      - DATABASE_URL=
+      - POSTGRES_PASSWORD=
+      - POSTGRES_DB=
+      - POSTGRES_USER=
     networks:
       - bytebot-core-network
 
