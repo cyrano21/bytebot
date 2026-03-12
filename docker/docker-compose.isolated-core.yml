@@ -8,9 +8,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-bytebotdb}
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=bytebotdb
     networks:
       - bytebot-core-network
     volumes:
@@ -29,13 +29,6 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-      # Coolify injects app-level envs into every service via env_file.
-      # Neutralize DB vars here so LiteLLM extras do not run Prisma
-      # migrations inside the proxy container at startup.
-      - DATABASE_URL=
-      - POSTGRES_PASSWORD=
-      - POSTGRES_DB=
-      - POSTGRES_USER=
     networks:
       - bytebot-core-network
 
@@ -49,7 +42,7 @@ services:
     ports:
       - "9991:9991"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-bytebotdb}}
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/bytebotdb
       - BYTEBOT_DESKTOP_BASE_URL=${BYTEBOT_DESKTOP_BASE_URL:?Set the remote desktop worker base URL}
       - BYTEBOT_LLM_PROXY_URL=${BYTEBOT_LLM_PROXY_URL:-http://bytebot-llm-proxy:4000}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
