@@ -2,10 +2,9 @@ name: bytebot
 
 services:
   bytebot-desktop:
-    # Build from source
     build:
-      context: ../packages/
-      dockerfile: bytebotd/Dockerfile
+      context: ..
+      dockerfile: docker/bytebot-desktop.Dockerfile
     # Use pre-built image
     image: ghcr.io/bytebot-ai/bytebot-desktop:edge
     shm_size: "2g"
