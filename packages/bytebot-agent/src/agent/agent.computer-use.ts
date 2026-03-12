@@ -694,7 +694,7 @@ function buildResearchTarget(taskDescription: string): {
 
   return {
     mode: 'search',
-    targetUrl: `https://www.bing.com/search?q=${encodeURIComponent(searchQuery)}`,
+    targetUrl: `https://duckduckgo.com/?q=${encodeURIComponent(searchQuery)}&ia=web`,
     query: searchQuery,
   };
 }

@@ -163,7 +163,7 @@ export class AgentProcessor {
     const intro =
       bootstrapResult.mode === 'url'
         ? `${BROWSER_BOOTSTRAP_MARKER} Firefox is open on ${bootstrapResult.targetUrl}. Continue from the live browser state.`
-        : `${BROWSER_BOOTSTRAP_MARKER} Firefox is open on Bing search results for: ${bootstrapResult.query}. Continue from the live browser state.`;
+        : `${BROWSER_BOOTSTRAP_MARKER} Firefox is open on DuckDuckGo search results for: ${bootstrapResult.query}. Continue from the live browser state.`;
 
     const blocks: MessageContentBlock[] = [
       {
