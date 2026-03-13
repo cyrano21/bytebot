@@ -55,7 +55,7 @@ const BROWSER_TOOL_REMINDER_MARKER = '[BYTEBOT_BROWSER_TOOL_REQUIRED]';
 const BROWSER_COMPLETION_REMINDER_MARKER =
   '[BYTEBOT_BROWSER_COMPLETION_REQUIRED]';
 const MAX_BROWSER_TOOL_ACTIONS_BEFORE_COMPLETION_REMINDER = 10;
-const MAX_BROWSER_TOOL_ACTIONS_BEFORE_REVIEW = 16;
+const MAX_BROWSER_TOOL_ACTIONS_BEFORE_REVIEW = 24;
 
 @Injectable()
 export class AgentProcessor {
@@ -205,11 +205,16 @@ export class AgentProcessor {
       this.hasSimpleVisibleStopCondition(taskDescription)
         ? ' If the requested stop condition is simply that search results are visible and the current screenshot already shows them, immediately call set_task_status with status "completed" instead of repeating the same search.'
         : '';
+    const tiktokHint = /ads\.tiktok\.com\/business\/creativecenter\/top-products/i.test(
+      bootstrapResult.targetUrl,
+    )
+      ? ' On TikTok Creative Center, first dismiss the cookie banner (for example "Decline optional cookies" or "Allow all") and the guided tooltip ("Skip") before exploring. As soon as 2 strong product candidates are visible with enough evidence, call set_task_status instead of spending extra clicks.'
+      : '';
 
     const blocks: MessageContentBlock[] = [
       {
         type: MessageContentType.Text,
-        text: `${intro}${completionHint} Use the available computer tools to inspect pages, gather evidence, and complete the task. Do not answer from memory.`,
+        text: `${intro}${completionHint}${tiktokHint} Use the available computer tools to inspect pages, gather evidence, and complete the task. Do not answer from memory.`,
       },
     ];
 

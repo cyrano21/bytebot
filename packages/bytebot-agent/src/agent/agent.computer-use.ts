@@ -692,6 +692,15 @@ function normalizeResearchQuery(taskDescription: string): string {
   return query || 'web research';
 }
 
+function isTikTokTopProductsResearch(query: string): boolean {
+  return (
+    /tiktok/i.test(query) &&
+    /(shop|product|products|produit|produits|best[- ]?selling|top product|top products|trending|trend|gagnant|winning|vendeu|vente)/i.test(
+      query,
+    )
+  );
+}
+
 function buildResearchTarget(taskDescription: string): {
   mode: 'url' | 'search';
   targetUrl: string;
@@ -707,6 +716,14 @@ function buildResearchTarget(taskDescription: string): {
   }
 
   const query = normalizeResearchQuery(taskDescription);
+  if (isTikTokTopProductsResearch(query)) {
+    return {
+      mode: 'url',
+      targetUrl: 'https://ads.tiktok.com/business/creativecenter/top-products/pc/en',
+      query,
+    };
+  }
+
   const searchQuery =
     /tiktok/i.test(query) && !/site:/i.test(query)
       ? `${query} site:tiktok.com`
