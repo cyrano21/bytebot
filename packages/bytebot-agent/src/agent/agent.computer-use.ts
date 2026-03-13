@@ -672,6 +672,26 @@ function extractFirstUrl(text: string): string | null {
   return match ? match[0] : null;
 }
 
+function normalizeResearchQuery(taskDescription: string): string {
+  const compactDescription = taskDescription.replace(/\s+/g, ' ').trim();
+  const researchMatch = compactDescription.match(
+    /\b(?:research|recherche)\b(?:\s+(?:the|les|des|de|du|d'|la|le))?\s+(.*?)(?=(?:[.?!]?\s+(?:stop|stop once|then|call set_task_status|set_task_status|arr[eê]te|puis|ensuite)\b)|$)/i,
+  );
+
+  let query = researchMatch?.[1]?.trim() ?? compactDescription;
+
+  query = query
+    .replace(/^(?:using|use|in)\s+firefox[:,]?\s*/i, '')
+    .replace(/^(?:avec|utilise[rz]?|dans)\s+firefox[:,]?\s*/i, '')
+    .replace(/\b(?:then|and then|puis|ensuite)\b.*$/i, '')
+    .replace(/\b(?:call\s+)?set_task_status\b.*$/i, '')
+    .replace(/\b(?:stop|arr[eê]te(?:-toi)?)\b.*$/i, '')
+    .replace(/[.?!]+$/g, '')
+    .trim();
+
+  return query || 'web research';
+}
+
 function buildResearchTarget(taskDescription: string): {
   mode: 'url' | 'search';
   targetUrl: string;
@@ -686,7 +706,7 @@ function buildResearchTarget(taskDescription: string): {
     };
   }
 
-  const query = taskDescription.replace(/\s+/g, ' ').trim() || 'web research';
+  const query = normalizeResearchQuery(taskDescription);
   const searchQuery =
     /tiktok/i.test(query) && !/site:/i.test(query)
       ? `${query} site:tiktok.com`
