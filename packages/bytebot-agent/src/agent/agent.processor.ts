@@ -859,16 +859,25 @@ export class AgentProcessor {
 
       // Update the task status after all tool results have been generated if we have a set task status tool use block
       if (setTaskStatusToolUseBlock) {
+        const taskResult = {
+          type: 'set_task_status',
+          status: setTaskStatusToolUseBlock.input.status,
+          description: setTaskStatusToolUseBlock.input.description,
+        } satisfies Prisma.JsonObject;
+
         switch (setTaskStatusToolUseBlock.input.status) {
           case 'completed':
             await this.tasksService.update(taskId, {
               status: TaskStatus.COMPLETED,
               completedAt: new Date(),
+              result: taskResult,
             });
             break;
           case 'needs_help':
             await this.tasksService.update(taskId, {
               status: TaskStatus.NEEDS_HELP,
+              error: setTaskStatusToolUseBlock.input.description,
+              result: taskResult,
             });
             break;
         }
