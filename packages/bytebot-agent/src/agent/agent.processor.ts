@@ -161,6 +161,16 @@ export class AgentProcessor {
     });
   }
 
+  private isSearchVisibilityTask(description: string): boolean {
+    return /search|recherche|duckduckgo|bing|google|result/i.test(description);
+  }
+
+  private hasSimpleVisibleStopCondition(description: string): boolean {
+    return /stop once|arr[eê]te[- ]toi|once .* visible|quand .* visible|results? (are )?visible|r[eé]sultats?.*visible/i.test(
+      description,
+    );
+  }
+
   private countComputerToolUseBlocks(blocks: MessageContentBlock[]): number {
     return blocks.reduce((count, block) => {
       if (isComputerToolUseContentBlock(block)) {
@@ -182,16 +192,24 @@ export class AgentProcessor {
 
   private buildBrowserBootstrapBlocks(
     bootstrapResult: Awaited<ReturnType<typeof bootstrapFirefoxResearch>>,
+    taskDescription: string,
   ): MessageContentBlock[] {
     const intro =
       bootstrapResult.mode === 'url'
         ? `${BROWSER_BOOTSTRAP_MARKER} Firefox is open on ${bootstrapResult.targetUrl}. Continue from the live browser state.`
         : `${BROWSER_BOOTSTRAP_MARKER} Firefox is open on DuckDuckGo search results for: ${bootstrapResult.query}. Continue from the live browser state.`;
 
+    const completionHint =
+      bootstrapResult.mode === 'search' &&
+      this.isSearchVisibilityTask(taskDescription) &&
+      this.hasSimpleVisibleStopCondition(taskDescription)
+        ? ' If the requested stop condition is simply that search results are visible and the current screenshot already shows them, immediately call set_task_status with status "completed" instead of repeating the same search.'
+        : '';
+
     const blocks: MessageContentBlock[] = [
       {
         type: MessageContentType.Text,
-        text: `${intro} Use the available computer tools to inspect pages, gather evidence, and complete the task. Do not answer from memory.`,
+        text: `${intro}${completionHint} Use the available computer tools to inspect pages, gather evidence, and complete the task. Do not answer from memory.`,
       },
     ];
 
@@ -613,6 +631,7 @@ export class AgentProcessor {
               await bootstrapFirefoxResearch(task.description);
             const bootstrapBlocks = this.buildBrowserBootstrapBlocks(
               bootstrapResult,
+              task.description,
             );
             const persistedBootstrapMessage = await this.messagesService.create({
               content: bootstrapBlocks,
