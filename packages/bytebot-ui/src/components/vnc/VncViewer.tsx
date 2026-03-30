@@ -20,6 +20,7 @@ export function VncViewer({ viewOnly = true }: VncViewerProps) {
     "Connexion au bureau virtuel...",
   );
   const [fallbackImage, setFallbackImage] = useState<string | null>(null);
+  const [secureContextRequired, setSecureContextRequired] = useState(false);
 
   useEffect(() => {
     // Dynamically import the VncScreen component only on the client side
@@ -35,7 +36,19 @@ export function VncViewer({ viewOnly = true }: VncViewerProps) {
   }, [viewOnly]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return; // SSR safety‑net
+    if (typeof window === "undefined") return;
+
+    if (!window.isSecureContext) {
+      setSecureContextRequired(true);
+      setViewerState("error");
+      setStatusMessage(
+        "Le bureau live requiert HTTPS/WSS. Rechargez cette page via https://.",
+      );
+      setWsUrl(null);
+      setInteractiveUrl(null);
+      return;
+    }
+
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
     setWsUrl(`${proto}://${window.location.host}/api/proxy/websockify`);
 
@@ -142,8 +155,9 @@ export function VncViewer({ viewOnly = true }: VncViewerProps) {
             <p className="font-medium">{statusMessage}</p>
             {viewerState !== "loading" && (
               <p className="mt-2 text-xs text-neutral-300">
-                Verifiez que `BYTEBOT_DESKTOP_VNC_URL` pointe vers un service
-                websockify accessible.
+                {secureContextRequired
+                  ? "Le fallback screenshot peut rester disponible, mais le flux VNC live ne demarrera pas sans contexte securise."
+                  : "Verifiez que `BYTEBOT_DESKTOP_VNC_URL` pointe vers un service websockify accessible."}
               </p>
             )}
           </div>
@@ -152,7 +166,7 @@ export function VncViewer({ viewOnly = true }: VncViewerProps) {
       {VncComponent && wsUrl && (
         <VncComponent
           rfbOptions={{
-            secure: false,
+            secure: wsUrl.startsWith("wss://"),
             shared: true,
             wsProtocols: ["binary"],
           }}
@@ -165,16 +179,19 @@ export function VncViewer({ viewOnly = true }: VncViewerProps) {
           background="#000000"
           onConnect={() => {
             setViewerState("connected");
+            setSecureContextRequired(false);
             setStatusMessage("Connecte au bureau virtuel.");
           }}
           onDisconnect={() => {
             setViewerState("disconnected");
-            setStatusMessage("Connexion au bureau virtuel interrompue.");
+            setStatusMessage(
+              "Desktop deconnecte. Tentative de reconnexion...",
+            );
           }}
           onSecurityFailure={() => {
             setViewerState("error");
             setStatusMessage(
-              "La connexion au bureau virtuel a ete refusee par le serveur.",
+              "La connexion au bureau virtuel a ete refusee. Verifiez HTTPS/WSS et websockify.",
             );
           }}
           style={{ width: "100%", height: "100%" }}

@@ -38,40 +38,32 @@ export function useWebSocket({
       transports: ["polling", "websocket"],
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 15000,
+      randomizationFactor: 0.5,
       timeout: 20000,
     });
 
     socket.on("connect", () => {
-      console.log("Connected to WebSocket server");
-    });
-
-    socket.on("disconnect", (reason) => {
-      console.log("Disconnected from WebSocket server", reason);
-    });
-
-    socket.on("connect_error", (error) => {
-      console.error("WebSocket connection error:", error.message);
+      if (currentTaskIdRef.current) {
+        socket.emit("join_task", currentTaskIdRef.current);
+      }
     });
 
     socket.on("task_updated", (task: Task) => {
-      console.log("Task updated:", task);
       handlersRef.current.onTaskUpdate?.(task);
     });
 
     socket.on("new_message", (message: Message) => {
-      console.log("New message:", message);
       handlersRef.current.onNewMessage?.(message);
     });
 
     socket.on("task_created", (task: Task) => {
-      console.log("Task created:", task);
       handlersRef.current.onTaskCreated?.(task);
     });
 
     socket.on("task_deleted", (taskId: string) => {
-      console.log("Task deleted:", taskId);
       handlersRef.current.onTaskDeleted?.(taskId);
     });
 
@@ -87,7 +79,6 @@ export function useWebSocket({
       }
       socket.emit("join_task", taskId);
       currentTaskIdRef.current = taskId;
-      console.log(`Joined task room: ${taskId}`);
     },
     [connect],
   );
@@ -96,7 +87,6 @@ export function useWebSocket({
     const socket = socketRef.current;
     if (socket && currentTaskIdRef.current) {
       socket.emit("leave_task", currentTaskIdRef.current);
-      console.log(`Left task room: ${currentTaskIdRef.current}`);
       currentTaskIdRef.current = null;
     }
   }, []);

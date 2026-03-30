@@ -8,9 +8,15 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_USER=postgres
       - POSTGRES_DB=bytebotdb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bytebotdb"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     networks:
       - bytebot-core-network
     volumes:
@@ -29,6 +35,12 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket,sys; s=socket.create_connection(('127.0.0.1', 4000), 5); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     networks:
       - bytebot-core-network
 
@@ -42,7 +54,7 @@ services:
     ports:
       - "9991:9991"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/bytebotdb
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/bytebotdb
       - BYTEBOT_DESKTOP_BASE_URL=${BYTEBOT_DESKTOP_BASE_URL:?Set the remote desktop worker base URL}
       - BYTEBOT_LLM_PROXY_URL=${BYTEBOT_LLM_PROXY_URL:-http://bytebot-llm-proxy:4000}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -50,8 +62,16 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - PORT=9991
     depends_on:
-      - postgres
-      - bytebot-llm-proxy
+      postgres:
+        condition: service_healthy
+      bytebot-llm-proxy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9991/api/health').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     networks:
       - bytebot-core-network
 
@@ -73,7 +93,14 @@ services:
       - BYTEBOT_DESKTOP_VNC_URL=${BYTEBOT_DESKTOP_VNC_URL:?Set the remote desktop worker VNC URL}
       - PORT=9992
     depends_on:
-      - bytebot-agent
+      bytebot-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9992/').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     networks:
       - bytebot-core-network
 
