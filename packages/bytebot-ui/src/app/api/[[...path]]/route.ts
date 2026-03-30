@@ -16,15 +16,16 @@ async function proxy(req: NextRequest, path: string[]): Promise<Response> {
   const headers = new Headers(req.headers);
   headers.delete("host");
   headers.delete("content-length");
+  const requestBody =
+    req.method === "GET" || req.method === "HEAD"
+      ? undefined
+      : await req.clone().text();
 
   try {
     const res = await fetch(url, {
       method: req.method,
       headers,
-      body:
-        req.method === "GET" || req.method === "HEAD"
-          ? undefined
-          : await req.text(),
+      body: requestBody,
     });
     const body = await res.text();
 
