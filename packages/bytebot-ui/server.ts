@@ -92,7 +92,6 @@ app
     const vncProxy = createProxyServer({ changeOrigin: true, ws: true });
 
     const expressApp = express();
-    expressApp.use(express.json({ limit: "1mb" }));
     const server = createServer(expressApp);
 
     // WebSocket proxy for Socket.IO connections to backend
@@ -143,7 +142,10 @@ app
         });
       }
     });
-    expressApp.post("/api/proxy/desktop/browser-action", async (req, res) => {
+    expressApp.post(
+      "/api/proxy/desktop/browser-action",
+      express.json({ limit: "1mb" }),
+      async (req, res) => {
       try {
         const body = JSON.stringify(req.body ?? {});
         const targets = [
@@ -190,7 +192,8 @@ app
           details: message,
         });
       }
-    });
+      },
+    );
     expressApp.use("/api/proxy/websockify", (req, res) => {
       req.url = getDesktopProxyPath(req.url);
       vncProxy.web(req, res, {
