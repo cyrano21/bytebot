@@ -24,7 +24,7 @@ async function proxy(req: NextRequest, path: string[]): Promise<Response> {
       body:
         req.method === "GET" || req.method === "HEAD"
           ? undefined
-          : await req.arrayBuffer(),
+          : await req.text(),
     });
     const body = await res.text();
 
