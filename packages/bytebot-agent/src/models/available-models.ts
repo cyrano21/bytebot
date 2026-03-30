@@ -24,6 +24,10 @@ type ModelCooldown = {
 
 const temporarilyUnavailableModels = new Map<string, ModelCooldown>();
 const temporarilyUnavailableProviders = new Map<string, ModelCooldown>();
+const DISABLED_PROXY_MODELS = new Set([
+  'healer-alpha',
+  'openrouter-mistral-small-vision-free',
+]);
 
 function isLikelyAnthropicApiKey(apiKey?: string | null): boolean {
   const normalizedKey = apiKey?.trim();
@@ -78,6 +82,10 @@ function isLikelyDeepSeekApiKey(apiKey?: string | null): boolean {
 
 function hasRuntimeSupportForProxyModel(modelName: string): boolean {
   const normalizedName = modelName.toLowerCase();
+
+  if (DISABLED_PROXY_MODELS.has(normalizedName)) {
+    return false;
+  }
 
   if (normalizedName.startsWith('ollama-')) {
     return true;

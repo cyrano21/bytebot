@@ -47,6 +47,7 @@ import { ProxyService } from '../proxy/proxy.service';
 import {
   getFallbackModels,
   markModelTemporarilyUnavailable,
+  resolveExecutableModel,
 } from '../models/available-models';
 
 const MAX_RETRYABLE_SERVICE_ATTEMPTS = 5;
@@ -656,7 +657,23 @@ export class AgentProcessor {
         `Sending ${messages.length} messages to LLM for processing`,
       );
 
-      const model = task.model as unknown as BytebotAgentModel;
+      const requestedModel = task.model as unknown as BytebotAgentModel;
+      const { model, usedFallback } =
+        await resolveExecutableModel(requestedModel);
+      if (!model) {
+        const errorMessage =
+          'No executable AI model is currently available for this task';
+        this.logger.error(`CRITICAL ERROR: ${errorMessage}`);
+        await this.failTask(taskId, errorMessage);
+        return;
+      }
+
+      if (usedFallback) {
+        this.logger.warn(
+          `Task ${taskId} requested unavailable model ${requestedModel.provider}:${requestedModel.name}; executing with fallback ${model.provider}:${model.name}`,
+        );
+      }
+
       this.logger.log(`Task model: ${JSON.stringify(model)}`);
       this.logger.log(
         `Available services: ${Object.keys(this.services).join(', ')}`,

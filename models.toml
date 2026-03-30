@@ -11,10 +11,8 @@ ollama_deepseek-r1-32b = "deepseek-r1:32b"
 ollama_qwq = "qwq:latest"
 ollama_magistral = "huihui_ai/magistral-abliterated:latest"
 
-# Modèles OpenRouter pour Bytebot (vision + tools)
-healer_alpha = "openrouter/openrouter/healer-alpha"
+# Modèle OpenRouter gratuit validé en production
 openrouter_nemotron_vl_free = "nvidia/nemotron-nano-12b-v2-vl:free"
-openrouter_mistral_small_vision_free = "mistralai/mistral-small-3.1-24b-instruct:free"
 
 [default]
-model = "healer_alpha"
+model = "openrouter_nemotron_vl_free"
