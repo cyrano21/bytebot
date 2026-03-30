@@ -4,45 +4,54 @@ import { NextRequest } from "next/server";
 /* generic proxy helper                                                 */
 /* -------------------------------------------------------------------- */
 async function proxy(req: NextRequest, path: string[]): Promise<Response> {
-  const BASE_URL = process.env.BYTEBOT_AGENT_BASE_URL!;
+  const BASE_URL = process.env.BYTEBOT_AGENT_BASE_URL;
+  if (!BASE_URL) {
+    return Response.json(
+      { error: "BYTEBOT_AGENT_BASE_URL is not configured" },
+      { status: 500 },
+    );
+  }
   const subPath = path.length ? `/${path.join("/")}` : "";
   const url = `${BASE_URL}/api${subPath}${req.nextUrl.search}`;
+  const headers = new Headers(req.headers);
+  headers.delete("host");
+  headers.delete("content-length");
 
-  // Extract cookies from the incoming request
-  const cookies = req.headers.get('cookie');
+  try {
+    const res = await fetch(url, {
+      method: req.method,
+      headers,
+      body:
+        req.method === "GET" || req.method === "HEAD"
+          ? undefined
+          : await req.arrayBuffer(),
+    });
+    const body = await res.text();
 
-  const init: RequestInit = {
-    method: req.method,
-    headers: { 
-      "Content-Type": "application/json",
-      ...(cookies && { "Cookie": cookies })
-    },
-    body:
-      req.method === "GET" || req.method === "HEAD"
-        ? undefined
-        : await req.text(),
-  };
+    const setCookieHeaders = res.headers.getSetCookie?.() || [];
+    const responseHeaders = new Headers({
+      "Content-Type": res.headers.get("content-type") || "application/json",
+    });
 
-  const res = await fetch(url, init);
-  const body = await res.text();
+    setCookieHeaders.forEach((cookie) => {
+      responseHeaders.append("Set-Cookie", cookie);
+    });
 
-  // Extract Set-Cookie headers from the backend response
-  const setCookieHeaders = res.headers.getSetCookie?.() || [];
-
-  // Create response headers
-  const responseHeaders = new Headers({
-    "Content-Type": "application/json"
-  });
-
-  // Add Set-Cookie headers if they exist
-  setCookieHeaders.forEach(cookie => {
-    responseHeaders.append("Set-Cookie", cookie);
-  });
-
-  return new Response(body, {
-    status: res.status,
-    headers: responseHeaders,
-  });
+    return new Response(body, {
+      status: res.status,
+      headers: responseHeaders,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown proxy error";
+    return Response.json(
+      {
+        error: "Failed to reach Bytebot agent",
+        detail: message,
+      },
+      { status: 502 },
+    );
+  }
 }
 
 /* -------------------------------------------------------------------- */

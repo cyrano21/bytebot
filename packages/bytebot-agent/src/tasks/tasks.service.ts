@@ -75,8 +75,18 @@ export class TasksService {
   }
 
   async create(createTaskDto: CreateTaskDto): Promise<Task> {
+    const description =
+      typeof createTaskDto?.description === 'string'
+        ? createTaskDto.description.trim()
+        : '';
+    if (!description) {
+      throw new BadRequestException(
+        'Task description is required to create a task',
+      );
+    }
+
     this.logger.log(
-      `Creating new task with description: ${createTaskDto.description}`,
+      `Creating new task with description: ${description}`,
     );
 
     const requestedModel =
@@ -97,13 +107,13 @@ export class TasksService {
 
     const task = await this.prisma.$transaction(async (prisma) => {
       // Create the task first
-      this.logger.debug('Creating task record in database');
-      const task = await prisma.task.create({
-        data: {
-          description: createTaskDto.description,
-          type: createTaskDto.type || TaskType.IMMEDIATE,
-          priority: createTaskDto.priority || TaskPriority.MEDIUM,
-          status: TaskStatus.PENDING,
+        this.logger.debug('Creating task record in database');
+        const task = await prisma.task.create({
+          data: {
+            description,
+            type: createTaskDto.type || TaskType.IMMEDIATE,
+            priority: createTaskDto.priority || TaskPriority.MEDIUM,
+            status: TaskStatus.PENDING,
           createdBy: createTaskDto.createdBy || Role.USER,
           model: resolvedModel as unknown as Prisma.InputJsonValue,
           ...(createTaskDto.scheduledFor
@@ -150,12 +160,12 @@ export class TasksService {
       await prisma.message.create({
         data: {
           content: [
-            {
-              type: 'text',
-              text: `${createTaskDto.description} ${filesDescription}`,
-            },
-          ] as Prisma.InputJsonValue,
-          role: Role.USER,
+              {
+                type: 'text',
+                text: `${description} ${filesDescription}`,
+              },
+            ] as Prisma.InputJsonValue,
+            role: Role.USER,
           taskId: task.id,
         },
       });
