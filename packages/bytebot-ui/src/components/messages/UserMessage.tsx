@@ -44,10 +44,12 @@ export function UserMessage({ group, messageIdToIndex }: UserMessageProps) {
                             data-block-index={blockIndex}
                             data-content-index={contentIndex}
                             style={{
-                              position: "absolute",
+                              display: "block",
                               width: 0,
                               height: 0,
                               overflow: "hidden",
+                              pointerEvents: "none",
+                              visibility: "hidden",
                             }}
                           />
                         );
@@ -103,10 +105,12 @@ export function UserMessage({ group, messageIdToIndex }: UserMessageProps) {
                         data-block-index={blockIndex}
                         data-content-index={contentIndex}
                         style={{
-                          position: "absolute",
+                          display: "block",
                           width: 0,
                           height: 0,
                           overflow: "hidden",
+                          pointerEvents: "none",
+                          visibility: "hidden",
                         }}
                       />
                     );

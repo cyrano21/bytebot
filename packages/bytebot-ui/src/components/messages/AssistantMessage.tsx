@@ -63,10 +63,12 @@ export function AssistantMessage({
                             data-block-index={blockIndex}
                             data-content-index={contentIndex}
                             style={{
-                              position: "absolute",
+                              display: "block",
                               width: 0,
                               height: 0,
                               overflow: "hidden",
+                              pointerEvents: "none",
+                              visibility: "hidden",
                             }}
                           />
                         );
@@ -110,10 +112,12 @@ export function AssistantMessage({
                           data-block-index={blockIndex}
                           data-content-index={contentIndex}
                           style={{
-                            position: "absolute",
+                            display: "block",
                             width: 0,
                             height: 0,
                             overflow: "hidden",
+                            pointerEvents: "none",
+                            visibility: "hidden",
                           }}
                         />
                       );
