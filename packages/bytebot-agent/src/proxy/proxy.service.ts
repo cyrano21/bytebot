@@ -22,6 +22,7 @@ import { proxyTools } from './proxy.tools';
 import {
   BytebotAgentService,
   BytebotAgentInterrupt,
+  BytebotAgentRefusal,
   BytebotAgentResponse,
 } from '../agent/agent.types';
 
@@ -471,10 +472,7 @@ export class ProxyService implements BytebotAgentService {
 
     // Handle refusal
     if (message.refusal) {
-      contentBlocks.push({
-        type: MessageContentType.Text,
-        text: `Refusal: ${message.refusal}`,
-      } as TextContentBlock);
+      throw new BytebotAgentRefusal(message.refusal);
     }
 
     // If no content blocks were created, add a default text block to avoid empty responses

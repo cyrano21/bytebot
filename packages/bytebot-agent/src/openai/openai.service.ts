@@ -18,6 +18,7 @@ import { openaiTools } from './openai.tools';
 import {
   BytebotAgentService,
   BytebotAgentInterrupt,
+  BytebotAgentRefusal,
   BytebotAgentResponse,
 } from '../agent/agent.types';
 
@@ -262,11 +263,7 @@ export class OpenAIService implements BytebotAgentService {
                 text: content.text,
               } as TextContentBlock);
             } else if ('refusal' in content) {
-              // ResponseOutputRefusal
-              contentBlocks.push({
-                type: MessageContentType.Text,
-                text: `Refusal: ${content.refusal}`,
-              } as TextContentBlock);
+              throw new BytebotAgentRefusal(content.refusal);
             }
           }
           break;

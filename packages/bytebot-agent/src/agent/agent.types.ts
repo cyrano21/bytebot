@@ -33,3 +33,13 @@ export class BytebotAgentInterrupt extends Error {
     this.name = 'BytebotAgentInterrupt';
   }
 }
+
+export class BytebotAgentRefusal extends Error {
+  readonly status = 400;
+  readonly code = 400;
+
+  constructor(refusal: string) {
+    super(`provider returned error: model refusal: ${refusal}`);
+    this.name = 'BytebotAgentRefusal';
+  }
+}

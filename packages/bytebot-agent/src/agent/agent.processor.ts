@@ -1,6 +1,7 @@
 import { TasksService } from '../tasks/tasks.service';
 import { MessagesService } from '../messages/messages.service';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { lookup as dnsLookup } from 'node:dns/promises';
 import {
   Message,
   Prisma,
@@ -53,10 +54,12 @@ import {
 const MAX_RETRYABLE_SERVICE_ATTEMPTS = 5;
 const BROWSER_BOOTSTRAP_MARKER = '[BYTEBOT_BROWSER_BOOTSTRAP]';
 const BROWSER_TOOL_REMINDER_MARKER = '[BYTEBOT_BROWSER_TOOL_REQUIRED]';
+const BROWSER_DOMAIN_VALIDATION_MARKER = '[BYTEBOT_BROWSER_DOMAIN_VALIDATION]';
 const BROWSER_COMPLETION_REMINDER_MARKER =
   '[BYTEBOT_BROWSER_COMPLETION_REQUIRED]';
 const MAX_BROWSER_TOOL_ACTIONS_BEFORE_COMPLETION_REMINDER = 10;
 const MAX_BROWSER_TOOL_ACTIONS_BEFORE_REVIEW = 24;
+const HOSTNAME_VALIDATION_TIMEOUT_MS = 3_000;
 
 @Injectable()
 export class AgentProcessor {
@@ -191,6 +194,90 @@ export class AgentProcessor {
     }, 0);
   }
 
+  private extractMentionedHosts(text: string): string[] {
+    const rawCandidates = [
+      ...Array.from(
+        text.matchAll(
+          /\bhttps?:\/\/([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)(?::\d+)?(?:\/[^\s)]*)?/gi,
+        ),
+        (match) => match[1],
+      ),
+      ...Array.from(
+        text.matchAll(
+          /\b((?:www\.)?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)\b/gi,
+        ),
+        (match) => match[1],
+      ),
+    ];
+
+    return Array.from(
+      new Set(
+        rawCandidates
+          .map((candidate) => candidate.toLowerCase().replace(/\.+$/g, ''))
+          .filter((candidate) => {
+            if (!candidate.includes('.')) {
+              return false;
+            }
+
+            const tld = candidate.split('.').pop() ?? '';
+            return /^[a-z]{2,24}$/.test(tld);
+          }),
+      ),
+    );
+  }
+
+  private extractMentionedHostsFromBlocks(
+    blocks: MessageContentBlock[],
+  ): string[] {
+    return Array.from(
+      new Set(
+        blocks
+          .filter(
+            (block): block is TextContentBlock =>
+              block.type === MessageContentType.Text,
+          )
+          .flatMap((block) => this.extractMentionedHosts(block.text)),
+      ),
+    );
+  }
+
+  private async hostResolves(host: string): Promise<boolean> {
+    try {
+      await Promise.race([
+        dnsLookup(host),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`DNS lookup timeout for ${host}`)),
+            HOSTNAME_VALIDATION_TIMEOUT_MS,
+          ),
+        ),
+      ]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async findUnresolvableHosts(
+    blocks: MessageContentBlock[],
+  ): Promise<string[]> {
+    const hosts = this.extractMentionedHostsFromBlocks(blocks);
+    if (hosts.length === 0) {
+      return [];
+    }
+
+    const validationResults = await Promise.all(
+      hosts.map(async (host) => ({
+        host,
+        resolves: await this.hostResolves(host),
+      })),
+    );
+
+    return validationResults
+      .filter((result) => !result.resolves)
+      .map((result) => result.host);
+  }
+
   private buildBrowserBootstrapBlocks(
     bootstrapResult: Awaited<ReturnType<typeof bootstrapFirefoxResearch>>,
     taskDescription: string,
@@ -215,7 +302,7 @@ export class AgentProcessor {
     const blocks: MessageContentBlock[] = [
       {
         type: MessageContentType.Text,
-        text: `${intro}${completionHint}${tiktokHint} Use the available computer tools to inspect pages, gather evidence, and complete the task. Do not answer from memory.`,
+        text: `${intro}${completionHint}${tiktokHint} Use the available computer tools to inspect pages, gather evidence, and complete the task. Only cite or recommend a website after verifying its exact hostname on-screen or by loading it successfully. Do not invent or normalize domains. Do not answer from memory.`,
       },
     ];
 
@@ -731,6 +818,51 @@ export class AgentProcessor {
         this.logger.warn(`${errorMessage}, marking as failed`);
         await this.failTask(taskId, errorMessage);
         return;
+      }
+
+      if (this.isBrowserTask(task.description)) {
+        const invalidHosts =
+          await this.findUnresolvableHosts(messageContentBlocks);
+
+        if (invalidHosts.length > 0) {
+          const invalidHostSummary = invalidHosts.join(', ');
+          const validationReminderAlreadySent = this.hasMarker(
+            messages,
+            BROWSER_DOMAIN_VALIDATION_MARKER,
+          );
+
+          this.logger.warn(
+            `Task ${taskId} draft mentioned unresolved domains: ${invalidHostSummary}`,
+          );
+
+          if (!validationReminderAlreadySent) {
+            await this.messagesService.create({
+              content: [
+                {
+                  type: MessageContentType.Text,
+                  text: `${BROWSER_DOMAIN_VALIDATION_MARKER} The previous draft mentioned domains that do not resolve: ${invalidHostSummary}. Continue browsing and replace them with websites whose exact hostname is visible on-screen or loads successfully. Do not invent, normalize, or guess domains.`,
+                },
+              ],
+              role: Role.USER,
+              taskId,
+            });
+
+            if (this.isProcessing) {
+              setImmediate(() => this.runIteration(taskId));
+            }
+            return;
+          }
+
+          await this.moveTaskToReview(
+            taskId,
+            `Browser task draft mentioned unresolved domains: ${invalidHostSummary}`,
+            {
+              content: messageContentBlocks,
+              invalidHosts,
+            },
+          );
+          return;
+        }
       }
 
       await this.messagesService.create({
