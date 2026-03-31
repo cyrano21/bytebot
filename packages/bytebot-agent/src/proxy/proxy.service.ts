@@ -550,9 +550,12 @@ export class ProxyService implements BytebotAgentService {
         payloadStart,
       );
       const repairedPayload =
-        !payloadCandidate && endMarkerRange
+        !payloadCandidate
           ? this.repairIncompleteJsonPayload(
-              content.slice(payloadStart, endMarkerRange.start),
+              content.slice(
+                payloadStart,
+                endMarkerRange?.start ?? content.length,
+              ),
             )
           : null;
 
@@ -739,9 +742,12 @@ export class ProxyService implements BytebotAgentService {
   private repairIncompleteJsonPayload(payload: string): string | null {
     const repairedApplicationPayload =
       this.repairTruncatedComputerApplicationPayload(payload);
+    const repairedKeyPayload = this.repairTruncatedComputerKeyPayload(
+      repairedApplicationPayload ?? payload,
+    );
 
     return this.repairIncompleteJson(
-      repairedApplicationPayload ?? payload,
+      repairedKeyPayload ?? repairedApplicationPayload ?? payload,
     );
   }
 
@@ -777,6 +783,30 @@ export class ProxyService implements BytebotAgentService {
     }
 
     return `${payload}${matchingApplicationNames[0].slice(partialApplicationName.length)}"`;
+  }
+
+  private repairTruncatedComputerKeyPayload(payload: string): string | null {
+    if (
+      !/computer_(?:press_keys|type_keys)/i.test(payload) ||
+      !/"keys"\s*:\s*\[/i.test(payload)
+    ) {
+      return null;
+    }
+
+    const partialKeyMatch = payload.match(
+      /"keys"\s*:\s*\[\s*"([^"\]\r\n>]*)>?[\s\r\n]*$/i,
+    );
+
+    if (!partialKeyMatch || partialKeyMatch.index === undefined) {
+      return null;
+    }
+
+    const partialKey = partialKeyMatch[1].trim();
+    if (partialKey === '') {
+      return null;
+    }
+
+    return `${payload.slice(0, partialKeyMatch.index)}"keys": ["${partialKey}"]`;
   }
 
   private repairIncompleteJson(payload: string): string | null {
