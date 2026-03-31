@@ -493,37 +493,306 @@ export class ProxyService implements BytebotAgentService {
     content: string,
     allowToolCalls: boolean,
   ): MessageContentBlock[] {
-    const toolCallRegex = /<TOOLCALL>([\s\S]*?)<\/TOOLCALL>/g;
-    const contentBlocks: MessageContentBlock[] = [];
-    let cursor = 0;
-    let match: RegExpExecArray | null;
-    let foundToolMarkup = false;
-
-    while ((match = toolCallRegex.exec(content)) !== null) {
-      foundToolMarkup = true;
-
-      this.pushTextBlock(contentBlocks, content.slice(cursor, match.index));
-
-      if (allowToolCalls) {
-        const toolBlocks = this.parseToolCallMarkup(match[1]);
-
-        if (toolBlocks.length > 0) {
-          contentBlocks.push(...toolBlocks);
-        } else {
-          this.pushTextBlock(contentBlocks, match[0]);
-        }
-      }
-
-      cursor = match.index + match[0].length;
+    if (!allowToolCalls) {
+      return this.buildPlainTextContentBlocks(content);
     }
 
-    if (!foundToolMarkup) {
-      this.pushTextBlock(contentBlocks, content);
-      return contentBlocks;
+    const taggedSegments = this.extractTaggedToolCallSegments(content);
+    if (taggedSegments.length > 0) {
+      return this.buildContentBlocksFromToolSegments(content, taggedSegments);
+    }
+
+    const directToolBlocks = this.parseDirectToolCallPayload(content);
+    if (directToolBlocks.length > 0) {
+      return directToolBlocks;
+    }
+
+    return this.buildPlainTextContentBlocks(content);
+  }
+
+  private buildPlainTextContentBlocks(content: string): MessageContentBlock[] {
+    const contentBlocks: MessageContentBlock[] = [];
+    this.pushTextBlock(contentBlocks, content);
+    return contentBlocks;
+  }
+
+  private extractTaggedToolCallSegments(
+    content: string,
+  ): Array<{ start: number; end: number; blocks: ToolUseContentBlock[] }> {
+    const segments: Array<{
+      start: number;
+      end: number;
+      blocks: ToolUseContentBlock[];
+    }> = [];
+    const startMarkerRegex = /(?:<)?(?:TOOLCALL|OOLCALL|OLCALL)>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = startMarkerRegex.exec(content)) !== null) {
+      const payloadStart = this.skipWhitespace(
+        content,
+        match.index + match[0].length,
+      );
+      const endMarkerRange = this.findToolCallEndMarkerRange(
+        content,
+        payloadStart,
+      );
+      const payloadCandidate = this.findBalancedJsonCandidate(
+        content,
+        payloadStart,
+      );
+      const repairedPayload =
+        !payloadCandidate && endMarkerRange
+          ? this.repairIncompleteJson(
+              content.slice(payloadStart, endMarkerRange.start),
+            )
+          : null;
+
+      const payloadText = payloadCandidate?.json ?? repairedPayload;
+      if (!payloadText) {
+        continue;
+      }
+
+      const blocks = this.parseToolCallMarkup(payloadText);
+      if (blocks.length === 0) {
+        continue;
+      }
+
+      const segmentEnd = endMarkerRange?.end
+        ? endMarkerRange.end
+        : payloadCandidate
+          ? this.consumeOptionalToolCallEndMarker(content, payloadCandidate.end)
+          : payloadStart;
+
+      segments.push({
+        start: match.index,
+        end: segmentEnd,
+        blocks,
+      });
+      startMarkerRegex.lastIndex = segmentEnd;
+    }
+
+    return segments;
+  }
+
+  private buildContentBlocksFromToolSegments(
+    content: string,
+    segments: Array<{ start: number; end: number; blocks: ToolUseContentBlock[] }>,
+  ): MessageContentBlock[] {
+    const contentBlocks: MessageContentBlock[] = [];
+    let cursor = 0;
+
+    for (const segment of segments.sort(
+      (left, right) => left.start - right.start,
+    )) {
+      if (segment.start < cursor) {
+        continue;
+      }
+
+      this.pushTextBlock(contentBlocks, content.slice(cursor, segment.start));
+      contentBlocks.push(...segment.blocks);
+      cursor = segment.end;
     }
 
     this.pushTextBlock(contentBlocks, content.slice(cursor));
     return contentBlocks;
+  }
+
+  private parseDirectToolCallPayload(content: string): ToolUseContentBlock[] {
+    const trimmedContent = content.trim();
+    if (trimmedContent === '') {
+      return [];
+    }
+
+    const unwrappedContent = this.unwrapJsonFence(trimmedContent);
+    if (
+      unwrappedContent === '' ||
+      (unwrappedContent[0] !== '{' && unwrappedContent[0] !== '[')
+    ) {
+      return [];
+    }
+
+    return this.parseToolCallMarkup(unwrappedContent);
+  }
+
+  private skipWhitespace(content: string, index: number): number {
+    let cursor = index;
+
+    while (cursor < content.length && /\s/.test(content[cursor])) {
+      cursor += 1;
+    }
+
+    return cursor;
+  }
+
+  private findBalancedJsonCandidate(
+    content: string,
+    startIndex: number,
+  ): { start: number; end: number; json: string } | null {
+    const jsonStart = this.skipWhitespace(content, startIndex);
+    const openingChar = content[jsonStart];
+
+    if (openingChar !== '{' && openingChar !== '[') {
+      return null;
+    }
+
+    const stack: string[] = [openingChar];
+    let inString = false;
+    let escaping = false;
+
+    for (let index = jsonStart + 1; index < content.length; index += 1) {
+      const currentChar = content[index];
+
+      if (inString) {
+        if (escaping) {
+          escaping = false;
+          continue;
+        }
+
+        if (currentChar === '\\') {
+          escaping = true;
+          continue;
+        }
+
+        if (currentChar === '"') {
+          inString = false;
+        }
+
+        continue;
+      }
+
+      if (currentChar === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (currentChar === '{' || currentChar === '[') {
+        stack.push(currentChar);
+        continue;
+      }
+
+      if (currentChar !== '}' && currentChar !== ']') {
+        continue;
+      }
+
+      const expectedOpeningChar = currentChar === '}' ? '{' : '[';
+      const lastOpeningChar = stack[stack.length - 1];
+
+      if (lastOpeningChar !== expectedOpeningChar) {
+        return null;
+      }
+
+      stack.pop();
+
+      if (stack.length === 0) {
+        return {
+          start: jsonStart,
+          end: index + 1,
+          json: content.slice(jsonStart, index + 1),
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private consumeOptionalToolCallEndMarker(
+    content: string,
+    index: number,
+  ): number {
+    const trailingContent = content.slice(index);
+    const endMarkerMatch = trailingContent.match(
+      /^\s*(?:<\/)?(?:TOOLCALL|OOLCALL|OLCALL|ALL)>/i,
+    );
+
+    return endMarkerMatch ? index + endMarkerMatch[0].length : index;
+  }
+
+  private findToolCallEndMarkerRange(
+    content: string,
+    startIndex: number,
+  ): { start: number; end: number } | null {
+    const trailingContent = content.slice(startIndex);
+    const endMarkerMatch = trailingContent.match(
+      /\s*(?:<\/)?(?:TOOLCALL|OOLCALL|OLCALL|ALL)>/i,
+    );
+
+    if (endMarkerMatch?.index === undefined) {
+      return null;
+    }
+
+    const start = startIndex + endMarkerMatch.index;
+    return {
+      start,
+      end: start + endMarkerMatch[0].length,
+    };
+  }
+
+  private repairIncompleteJson(payload: string): string | null {
+    const trimmedPayload = payload.trim();
+    if (
+      trimmedPayload === '' ||
+      (trimmedPayload[0] !== '{' && trimmedPayload[0] !== '[')
+    ) {
+      return null;
+    }
+
+    const stack: string[] = [];
+    let inString = false;
+    let escaping = false;
+
+    for (const currentChar of trimmedPayload) {
+      if (inString) {
+        if (escaping) {
+          escaping = false;
+          continue;
+        }
+
+        if (currentChar === '\\') {
+          escaping = true;
+          continue;
+        }
+
+        if (currentChar === '"') {
+          inString = false;
+        }
+
+        continue;
+      }
+
+      if (currentChar === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (currentChar === '{' || currentChar === '[') {
+        stack.push(currentChar);
+        continue;
+      }
+
+      if (currentChar !== '}' && currentChar !== ']') {
+        continue;
+      }
+
+      const expectedOpeningChar = currentChar === '}' ? '{' : '[';
+      const lastOpeningChar = stack[stack.length - 1];
+
+      if (lastOpeningChar !== expectedOpeningChar) {
+        return null;
+      }
+
+      stack.pop();
+    }
+
+    if (inString) {
+      return null;
+    }
+
+    const closingCharacters = stack
+      .reverse()
+      .map((openingChar) => (openingChar === '{' ? '}' : ']'))
+      .join('');
+
+    return `${trimmedPayload}${closingCharacters}`;
   }
 
   private pushTextBlock(
