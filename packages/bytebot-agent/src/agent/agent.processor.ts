@@ -143,6 +143,51 @@ export class AgentProcessor {
     );
   }
 
+  private isBrowserResearchTask(description: string): boolean {
+    return /search|recherche|compare|compar|inspect|analy[sz]e|research|rank|trend|best|meilleur|top|evidence|preuve|collect|gather|find|trouve|review|evaluate|reproduce|reproduire/i.test(
+      description,
+    );
+  }
+
+  private isNavigationOnlyBrowserCompletion(description: string): boolean {
+    const mentionsNavigationOnly =
+      /\b(open|opened|ouvre|ouvert|load|loaded|visit|visited|navigat(?:e|ed)|access(?:ed)?|focus(?:ed)?|launch(?:ed)?)\b/i.test(
+        description,
+      ) ||
+      /\b(browser|firefox|site|website|page)\b.*\b(open|opened|loaded|ready|visible)\b/i.test(
+        description,
+      );
+
+    if (!mentionsNavigationOnly) {
+      return false;
+    }
+
+    return !/\b(compare|compared|comparison|comparaison|recommend|recommended|recommendation|summary|summarized|resume|resum[eé]|evidence|preuves?|found|results?|analysis|analyse|ranking|candidate|candidates|selected|selection)\b/i.test(
+      description,
+    );
+  }
+
+  private shouldRejectBrowserCompletion(
+    taskDescription: string,
+    completionDescription: string,
+  ): boolean {
+    if (this.isSimpleBrowserFocusTask(taskDescription)) {
+      return false;
+    }
+
+    if (
+      this.isSearchVisibilityTask(taskDescription) &&
+      this.hasSimpleVisibleStopCondition(taskDescription)
+    ) {
+      return false;
+    }
+
+    return (
+      this.isBrowserResearchTask(taskDescription) &&
+      this.isNavigationOnlyBrowserCompletion(completionDescription)
+    );
+  }
+
   private flattenMessageContent(messages: Message[]): MessageContentBlock[] {
     return messages.flatMap(
       (message) => (message.content as MessageContentBlock[]) ?? [],
@@ -959,7 +1004,9 @@ export class AgentProcessor {
       );
 
       const generatedToolResults: ToolResultContentBlock[] = [];
-
+      const browserTaskHistory = this.isBrowserTask(task.description)
+        ? await this.messagesService.findEvery(taskId)
+        : null;
       let setTaskStatusToolUseBlock: SetTaskStatusToolUseBlock | null = null;
 
       for (const block of messageContentBlocks) {
@@ -997,15 +1044,49 @@ export class AgentProcessor {
 
         if (isSetTaskStatusToolUseBlock(block)) {
           setTaskStatusToolUseBlock = block;
+        }
+      }
+
+      let rejectedBrowserCompletionMessage: string | null = null;
+
+      if (setTaskStatusToolUseBlock) {
+        const completionWasRejected =
+          this.isBrowserTask(task.description) &&
+          setTaskStatusToolUseBlock.input.status === 'completed' &&
+          this.shouldRejectBrowserCompletion(
+            task.description,
+            setTaskStatusToolUseBlock.input.description,
+          );
+
+        if (completionWasRejected) {
+          rejectedBrowserCompletionMessage = `${BROWSER_COMPLETION_REMINDER_MARKER} Do not mark the task completed yet. The user asked for browser research or comparison work, and the previous completion summary only reported page navigation: "${setTaskStatusToolUseBlock.input.description}". Continue using computer_* tools until the requested comparison or research result is actually complete, then call set_task_status again with a summary of what was accomplished.`;
+
+          this.logger.warn(
+            `Task ${taskId} attempted premature browser completion: ${setTaskStatusToolUseBlock.input.description}`,
+          );
 
           generatedToolResults.push({
             type: MessageContentType.ToolResult,
-            tool_use_id: block.id,
-            is_error: block.input.status === 'failed',
+            tool_use_id: setTaskStatusToolUseBlock.id,
+            is_error: true,
             content: [
               {
                 type: MessageContentType.Text,
-                text: block.input.description,
+                text: rejectedBrowserCompletionMessage,
+              },
+            ],
+          });
+
+          setTaskStatusToolUseBlock = null;
+        } else {
+          generatedToolResults.push({
+            type: MessageContentType.ToolResult,
+            tool_use_id: setTaskStatusToolUseBlock.id,
+            is_error: setTaskStatusToolUseBlock.input.status === 'failed',
+            content: [
+              {
+                type: MessageContentType.Text,
+                text: setTaskStatusToolUseBlock.input.description,
               },
             ],
           });
@@ -1018,6 +1099,24 @@ export class AgentProcessor {
           role: Role.USER,
           taskId,
         });
+      }
+
+      if (rejectedBrowserCompletionMessage) {
+        await this.messagesService.create({
+          content: [
+            {
+              type: MessageContentType.Text,
+              text: rejectedBrowserCompletionMessage,
+            },
+          ],
+          role: Role.USER,
+          taskId,
+        });
+
+        if (this.isProcessing) {
+          setImmediate(() => this.runIteration(taskId));
+        }
+        return;
       }
 
       // Update the task status after all tool results have been generated if we have a set task status tool use block
@@ -1045,10 +1144,6 @@ export class AgentProcessor {
             break;
         }
       }
-
-      const browserTaskHistory = this.isBrowserTask(task.description)
-        ? await this.messagesService.findEvery(taskId)
-        : null;
 
       const hasTextResponse = messageContentBlocks.some(
         (block) => block.type === MessageContentType.Text,
