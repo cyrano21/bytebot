@@ -430,8 +430,7 @@ export class ProxyService implements BytebotAgentService {
     message: OpenAI.Chat.ChatCompletionMessage,
   ): MessageContentBlock[] {
     const contentBlocks: MessageContentBlock[] = [];
-    const hasStructuredToolCalls =
-      Boolean(message.tool_calls) && message.tool_calls.length > 0;
+    const hasStructuredToolCalls = (message.tool_calls?.length ?? 0) > 0;
 
     // Handle text content
     if (message.content && message.content.trim() !== '') {
