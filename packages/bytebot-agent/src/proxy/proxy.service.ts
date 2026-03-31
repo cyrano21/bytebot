@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
 import OpenAI, { APIUserAbortError } from 'openai';
 import {
   ChatCompletionMessageParam,
@@ -429,13 +430,14 @@ export class ProxyService implements BytebotAgentService {
     message: OpenAI.Chat.ChatCompletionMessage,
   ): MessageContentBlock[] {
     const contentBlocks: MessageContentBlock[] = [];
+    const hasStructuredToolCalls =
+      Boolean(message.tool_calls) && message.tool_calls.length > 0;
 
     // Handle text content
     if (message.content && message.content.trim() !== '') {
-      contentBlocks.push({
-        type: MessageContentType.Text,
-        text: message.content,
-      } as TextContentBlock);
+      contentBlocks.push(
+        ...this.parseMessageContent(message.content, !hasStructuredToolCalls),
+      );
     }
 
     if (message['reasoning_content']) {
@@ -485,6 +487,143 @@ export class ProxyService implements BytebotAgentService {
     }
 
     return contentBlocks;
+  }
+
+  private parseMessageContent(
+    content: string,
+    allowToolCalls: boolean,
+  ): MessageContentBlock[] {
+    const toolCallRegex = /<TOOLCALL>([\s\S]*?)<\/TOOLCALL>/g;
+    const contentBlocks: MessageContentBlock[] = [];
+    let cursor = 0;
+    let match: RegExpExecArray | null;
+    let foundToolMarkup = false;
+
+    while ((match = toolCallRegex.exec(content)) !== null) {
+      foundToolMarkup = true;
+
+      this.pushTextBlock(contentBlocks, content.slice(cursor, match.index));
+
+      if (allowToolCalls) {
+        const toolBlocks = this.parseToolCallMarkup(match[1]);
+
+        if (toolBlocks.length > 0) {
+          contentBlocks.push(...toolBlocks);
+        } else {
+          this.pushTextBlock(contentBlocks, match[0]);
+        }
+      }
+
+      cursor = match.index + match[0].length;
+    }
+
+    if (!foundToolMarkup) {
+      this.pushTextBlock(contentBlocks, content);
+      return contentBlocks;
+    }
+
+    this.pushTextBlock(contentBlocks, content.slice(cursor));
+    return contentBlocks;
+  }
+
+  private pushTextBlock(
+    contentBlocks: MessageContentBlock[],
+    text: string,
+  ): void {
+    if (!text || text.trim() === '') {
+      return;
+    }
+
+    contentBlocks.push({
+      type: MessageContentType.Text,
+      text,
+    } as TextContentBlock);
+  }
+
+  private parseToolCallMarkup(payload: string): ToolUseContentBlock[] {
+    const sanitizedPayload = this.unwrapJsonFence(payload.trim());
+
+    try {
+      return this.normalizeToolCallPayload(JSON.parse(sanitizedPayload));
+    } catch (error) {
+      this.logger.warn(
+        `Failed to parse TOOLCALL payload: ${sanitizedPayload}`,
+      );
+      return [];
+    }
+  }
+
+  private unwrapJsonFence(payload: string): string {
+    const fencedMatch = payload.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    return fencedMatch ? fencedMatch[1].trim() : payload;
+  }
+
+  private normalizeToolCallPayload(payload: unknown): ToolUseContentBlock[] {
+    const candidates = Array.isArray(payload)
+      ? payload
+      : this.isRecord(payload) && Array.isArray(payload.tool_calls)
+        ? payload.tool_calls
+        : [payload];
+
+    return candidates
+      .map((candidate) => this.normalizeToolCall(candidate))
+      .filter((block): block is ToolUseContentBlock => block !== null);
+  }
+
+  private normalizeToolCall(candidate: unknown): ToolUseContentBlock | null {
+    if (!this.isRecord(candidate)) {
+      return null;
+    }
+
+    if (typeof candidate.name === 'string' && candidate.name.trim() !== '') {
+      return {
+        type: MessageContentType.ToolUse,
+        id:
+          typeof candidate.id === 'string' && candidate.id.trim() !== ''
+            ? candidate.id
+            : randomUUID(),
+        name: candidate.name,
+        input: this.normalizeToolInput(
+          candidate.input ?? candidate.arguments ?? {},
+        ),
+      } as ToolUseContentBlock;
+    }
+
+    if (
+      candidate.type === 'function' &&
+      this.isRecord(candidate.function) &&
+      typeof candidate.function.name === 'string' &&
+      candidate.function.name.trim() !== ''
+    ) {
+      return {
+        type: MessageContentType.ToolUse,
+        id:
+          typeof candidate.id === 'string' && candidate.id.trim() !== ''
+            ? candidate.id
+            : randomUUID(),
+        name: candidate.function.name,
+        input: this.normalizeToolInput(candidate.function.arguments ?? {}),
+      } as ToolUseContentBlock;
+    }
+
+    return null;
+  }
+
+  private normalizeToolInput(input: unknown): Record<string, unknown> {
+    if (typeof input === 'string') {
+      try {
+        const parsedInput = JSON.parse(input);
+        return this.isRecord(parsedInput) ? parsedInput : {};
+      } catch {
+        return {};
+      }
+    }
+
+    return this.isRecord(input) ? input : {};
+  }
+
+  private isRecord(value: unknown): value is Record<string, any> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 
   /**
