@@ -129,6 +129,20 @@ export class AgentProcessor {
     );
   }
 
+  private isSimpleBrowserFocusTask(description: string): boolean {
+    if (
+      /search|recherche|compare|compar|inspect|analy[sz]e|research|rank|trend|best|meilleur|top|site|website|web site|url|http|www|mimiready|orchidy|google|duckduckgo|bing|youtube|tiktok/i.test(
+        description,
+      )
+    ) {
+      return false;
+    }
+
+    return /\b(open|ouvre|launch|focus|switch|activate|bring|close|ferme|ouvre-moi)\b.*\b(firefox|browser)\b|\b(firefox|browser)\b.*\b(open|ouvre|launch|focus|switch|activate|bring|close|ferme)\b/i.test(
+      description,
+    );
+  }
+
   private flattenMessageContent(messages: Message[]): MessageContentBlock[] {
     return messages.flatMap(
       (message) => (message.content as MessageContentBlock[]) ?? [],
@@ -1070,7 +1084,10 @@ export class AgentProcessor {
               return;
             }
 
-            if (this.hasComputerAutomationEvidence(browserMessages)) {
+            if (
+              this.hasComputerAutomationEvidence(browserMessages) &&
+              this.isSimpleBrowserFocusTask(task.description)
+            ) {
               this.logger.log(
                 `Task ${taskId} produced a terminal browser text response after computer actions; completing automatically`,
               );
