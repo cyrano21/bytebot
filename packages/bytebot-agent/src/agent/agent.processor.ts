@@ -1155,18 +1155,33 @@ export class AgentProcessor {
         if (hasTextResponse) {
           if (this.isBrowserTask(task.description)) {
             const browserMessages = browserTaskHistory ?? messages;
+            const hasComputerEvidence =
+              this.hasComputerAutomationEvidence(browserMessages);
+            const hasToolReminder = this.hasMarker(
+              browserMessages,
+              BROWSER_TOOL_REMINDER_MARKER,
+            );
+
             if (
-              !this.hasComputerAutomationEvidence(browserMessages) &&
-              !this.hasMarker(browserMessages, BROWSER_TOOL_REMINDER_MARKER)
+              hasComputerEvidence &&
+              this.isSimpleBrowserFocusTask(task.description)
             ) {
+              this.logger.log(
+                `Task ${taskId} produced a terminal browser text response after computer actions; completing automatically`,
+              );
+              await this.completeTaskFromResponse(taskId, messageContentBlocks);
+              return;
+            }
+
+            if (!hasToolReminder) {
               this.logger.warn(
-                `Task ${taskId} produced text without browser actions; requesting an explicit computer-tool step`,
+                `Task ${taskId} produced browser text without an executable next step; requesting an explicit computer-tool action`,
               );
               await this.messagesService.create({
                 content: [
                   {
                     type: MessageContentType.Text,
-                    text: `${BROWSER_TOOL_REMINDER_MARKER} The browser is already open on a live page. Your next response must use at least one computer_* tool or set_task_status. Do not reply with analysis from memory.`,
+                    text: `${BROWSER_TOOL_REMINDER_MARKER} The browser is already open on a live page and the task is not complete yet. Your next response must use at least one computer_* tool on the current page, or call set_task_status only after the requested outcome is actually complete. Do not answer with instructions for the user to click, type, accept cookies, or continue manually.`,
                   },
                 ],
                 role: Role.USER,
@@ -1179,19 +1194,8 @@ export class AgentProcessor {
               return;
             }
 
-            if (
-              this.hasComputerAutomationEvidence(browserMessages) &&
-              this.isSimpleBrowserFocusTask(task.description)
-            ) {
-              this.logger.log(
-                `Task ${taskId} produced a terminal browser text response after computer actions; completing automatically`,
-              );
-              await this.completeTaskFromResponse(taskId, messageContentBlocks);
-              return;
-            }
-
             const errorMessage =
-              'Browser task ended with text only and no computer action';
+              'Browser task ended with text only after an explicit browser-action reminder';
             this.logger.warn(`Task ${taskId}: ${errorMessage}`);
             await this.moveTaskToReview(taskId, errorMessage, {
               content: messageContentBlocks,
