@@ -91,13 +91,13 @@ export class AgentProcessor {
 
   private resolveServiceCallTimeoutMs(): number {
     const parsedValue = Number.parseInt(
-      process.env.BYTEBOT_MODEL_TIMEOUT_MS ?? '90000',
+      process.env.BYTEBOT_MODEL_TIMEOUT_MS ?? '180000',
       10,
     );
 
     return Number.isFinite(parsedValue) && parsedValue > 0
       ? parsedValue
-      : 90000;
+      : 180000;
   }
 
   private resetProcessingState() {
