@@ -27,6 +27,16 @@ import {
   BytebotAgentResponse,
 } from '../agent/agent.types';
 
+const COMPUTER_APPLICATION_NAMES = [
+  'firefox',
+  '1password',
+  'thunderbird',
+  'vscode',
+  'terminal',
+  'desktop',
+  'directory',
+] as const;
+
 @Injectable()
 export class ProxyService implements BytebotAgentService {
   private readonly openai: OpenAI;
@@ -541,7 +551,7 @@ export class ProxyService implements BytebotAgentService {
       );
       const repairedPayload =
         !payloadCandidate && endMarkerRange
-          ? this.repairIncompleteJson(
+          ? this.repairIncompleteJsonPayload(
               content.slice(payloadStart, endMarkerRange.start),
             )
           : null;
@@ -700,7 +710,7 @@ export class ProxyService implements BytebotAgentService {
   ): number {
     const trailingContent = content.slice(index);
     const endMarkerMatch = trailingContent.match(
-      /^\s*(?:<\/)?(?:TOOLCALL|OOLCALL|OLCALL|ALL)>/i,
+      /^\s*(?:<\/)?(?:TOOLCALL|OOLCALL|OLCALL|CALL|ALL)>/i,
     );
 
     return endMarkerMatch ? index + endMarkerMatch[0].length : index;
@@ -712,7 +722,7 @@ export class ProxyService implements BytebotAgentService {
   ): { start: number; end: number } | null {
     const trailingContent = content.slice(startIndex);
     const endMarkerMatch = trailingContent.match(
-      /\s*(?:<\/)?(?:TOOLCALL|OOLCALL|OLCALL|ALL)>/i,
+      /\s*(?:<\/)?(?:TOOLCALL|OOLCALL|OLCALL|CALL|ALL)>/i,
     );
 
     if (endMarkerMatch?.index === undefined) {
@@ -724,6 +734,49 @@ export class ProxyService implements BytebotAgentService {
       start,
       end: start + endMarkerMatch[0].length,
     };
+  }
+
+  private repairIncompleteJsonPayload(payload: string): string | null {
+    const repairedApplicationPayload =
+      this.repairTruncatedComputerApplicationPayload(payload);
+
+    return this.repairIncompleteJson(
+      repairedApplicationPayload ?? payload,
+    );
+  }
+
+  private repairTruncatedComputerApplicationPayload(
+    payload: string,
+  ): string | null {
+    if (
+      !/computer_application/i.test(payload) ||
+      !/"application"\s*:\s*"/i.test(payload)
+    ) {
+      return null;
+    }
+
+    const applicationPrefixMatch = payload.match(
+      /"application"\s*:\s*"([^"\]}]*)$/i,
+    );
+
+    if (!applicationPrefixMatch) {
+      return null;
+    }
+
+    const partialApplicationName = applicationPrefixMatch[1].toLowerCase();
+    if (partialApplicationName === '') {
+      return null;
+    }
+
+    const matchingApplicationNames = COMPUTER_APPLICATION_NAMES.filter(
+      (applicationName) => applicationName.startsWith(partialApplicationName),
+    );
+
+    if (matchingApplicationNames.length !== 1) {
+      return null;
+    }
+
+    return `${payload}${matchingApplicationNames[0].slice(partialApplicationName.length)}"`;
   }
 
   private repairIncompleteJson(payload: string): string | null {
