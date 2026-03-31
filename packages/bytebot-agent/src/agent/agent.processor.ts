@@ -1070,6 +1070,14 @@ export class AgentProcessor {
               return;
             }
 
+            if (this.hasComputerAutomationEvidence(browserMessages)) {
+              this.logger.log(
+                `Task ${taskId} produced a terminal browser text response after computer actions; completing automatically`,
+              );
+              await this.completeTaskFromResponse(taskId, messageContentBlocks);
+              return;
+            }
+
             const errorMessage =
               'Browser task ended with text only and no computer action';
             this.logger.warn(`Task ${taskId}: ${errorMessage}`);
