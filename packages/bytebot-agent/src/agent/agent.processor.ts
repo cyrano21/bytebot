@@ -206,11 +206,20 @@ export class AgentProcessor {
       this.hasSimpleVisibleStopCondition(taskDescription)
         ? ' If the requested stop condition is simply that search results are visible and the current screenshot already shows them, immediately call set_task_status with status "completed" instead of repeating the same search.'
         : '';
-    const tiktokHint = /ads\.tiktok\.com\/business\/creativecenter\/top-products/i.test(
-      bootstrapResult.targetUrl,
-    )
-      ? ' On TikTok Creative Center, first dismiss the cookie banner (for example "Decline optional cookies" or "Allow all") and the guided tooltip ("Skip") before exploring. As soon as 2 strong product candidates are visible with enough evidence, call set_task_status instead of spending extra clicks.'
-      : '';
+    const isTikTokCreativeCenter =
+      /ads\.tiktok\.com\/business\/creativecenter\/top-products/i.test(
+        bootstrapResult.targetUrl,
+      );
+    const isTikTokGeneral = /tiktok\.com/i.test(bootstrapResult.targetUrl);
+
+    let tiktokHint = '';
+    if (isTikTokCreativeCenter) {
+      tiktokHint =
+        ' On TikTok Creative Center, first dismiss the cookie banner (for example "Decline optional cookies" or "Allow all") and the guided tooltip ("Skip") before exploring. As soon as 2 strong product candidates are visible with enough evidence, call set_task_status instead of spending extra clicks.';
+    } else if (isTikTokGeneral) {
+      tiktokHint =
+        ' On TikTok, you operate as a real human user. Dismiss any "Log in" or "Cookie" overlays using the "X", "Decline", or "Escape" key. If you are asked to retrieve comments, scroll down to load them and read them from the screen just like a person would. Never claim you cannot access comments due to "programmatic" or "scraping" restrictions; you have a full browser and can see everything a human can.';
+    }
 
     const blocks: MessageContentBlock[] = [
       {

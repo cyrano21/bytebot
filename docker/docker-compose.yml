@@ -110,7 +110,7 @@ services:
       dockerfile: bytebot-ui/Dockerfile
       args:
         - BYTEBOT_AGENT_BASE_URL=${BYTEBOT_AGENT_BASE_URL:-http://bytebot-agent:9991}
-        - BYTEBOT_DESKTOP_VNC_URL=${BYTEBOT_DESKTOP_VNC_URL:-ws://bytebot-desktop:9990/websockify}
+        - BYTEBOT_DESKTOP_VNC_URL=${BYTEBOT_DESKTOP_VNC_URL:-ws://localhost:9990/websockify}
     # Use pre-built image
     image: ghcr.io/bytebot-ai/bytebot-ui:edge
     container_name: bytebot-ui
@@ -120,7 +120,7 @@ services:
     environment:
       - NODE_ENV=production
       - BYTEBOT_AGENT_BASE_URL=${BYTEBOT_AGENT_BASE_URL:-http://bytebot-agent:9991}
-      - BYTEBOT_DESKTOP_VNC_URL=${BYTEBOT_DESKTOP_VNC_URL:-ws://bytebot-desktop:9990/websockify}
+      - BYTEBOT_DESKTOP_VNC_URL=${BYTEBOT_DESKTOP_VNC_URL:-ws://localhost:9990/websockify}
     depends_on:
       bytebot-agent:
         condition: service_healthy
