@@ -1,0 +1,17 @@
+name: bytebot-desktop-worker
+
+services:
+  bytebot-desktop:
+    build:
+      context: ..
+      dockerfile: docker/bytebot-desktop.Dockerfile
+    image: ghcr.io/bytebot-ai/bytebot-desktop:edge
+    container_name: bytebot-desktop
+    restart: unless-stopped
+    hostname: computer
+    privileged: true
+    shm_size: "2g"
+    ports:
+      - "${BYTEBOT_DESKTOP_PORT:-9990}:9990"
+    environment:
+      - DISPLAY=:0

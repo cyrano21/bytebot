@@ -1,0 +1,76 @@
+---
+title: "Isolated Coolify"
+description: "Deploy Bytebot on Coolify with the desktop worker isolated from the core stack"
+---
+
+This deployment splits Bytebot into two independent resources:
+
+- `bytebot-core`: UI, agent, Postgres, LiteLLM proxy
+- `bytebot-desktop-worker`: the browser and desktop runtime only
+
+Run both resources on the same VPS in Coolify, but as separate applications. That keeps restarts cleaner, health checks simpler, and prevents the privileged desktop worker from taking down the whole stack.
+
+## Files
+
+- Core stack: `docker/docker-compose.isolated-core.yml`
+- Desktop worker: `docker/docker-compose.desktop-worker.yml`
+
+## Resource 1: `bytebot-core`
+
+Create a Compose application in Coolify with:
+
+```bash
+docker/docker-compose.isolated-core.yml
+```
+
+Required environment variables:
+
+- `POSTGRES_PASSWORD`
+- `POSTGRES_DB`
+- `DATABASE_URL`
+- `BYTEBOT_DESKTOP_BASE_URL`
+- `BYTEBOT_DESKTOP_VNC_URL`
+- one of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`
+
+Optional:
+
+- `OPENROUTER_API_KEY`
+- `BYTEBOT_LLM_PROXY_URL`
+
+Recommended values when the desktop worker is exposed through Coolify:
+
+```bash
+BYTEBOT_DESKTOP_BASE_URL=https://desktop-worker.example.com
+BYTEBOT_DESKTOP_VNC_URL=wss://desktop-worker.example.com/websockify
+```
+
+Recommended values when the worker is reachable only internally:
+
+```bash
+BYTEBOT_DESKTOP_BASE_URL=http://bytebot-desktop-worker:9990
+BYTEBOT_DESKTOP_VNC_URL=ws://bytebot-desktop-worker:9990/websockify
+```
+
+The UI is exposed from `bytebot-ui`.
+The API is exposed from `bytebot-agent`.
+
+## Resource 2: `bytebot-desktop-worker`
+
+Create a second Compose application in Coolify with:
+
+```bash
+docker/docker-compose.desktop-worker.yml
+```
+
+Required environment variables:
+
+- `BYTEBOT_DESKTOP_PORT=9990`
+
+Expose the worker publicly only if the core stack cannot reach it internally. If you expose it publicly, protect it behind a private domain or Coolify access controls.
+
+## Why this layout
+
+- The UI binds on `0.0.0.0`, which Coolify requires.
+- The UI validates `BYTEBOT_AGENT_BASE_URL` and `BYTEBOT_DESKTOP_VNC_URL` at boot, so bad proxy config fails fast.
+- The core stack gets health checks for Postgres, the agent, the UI, and the LiteLLM proxy.
+- The desktop worker can restart independently without breaking the task API or web UI.

@@ -103,6 +103,15 @@ docker-compose -f docker/docker-compose.yml up -d
 # Open http://localhost:9992
 ```
 
+**Option 3: Coolify (isolated)**
+
+Use two Coolify Compose applications:
+
+- `docker/docker-compose.isolated-core.yml`
+- `docker/docker-compose.desktop-worker.yml`
+
+This keeps the UI/API stack separate from the privileged desktop worker, which is the safer production layout for Coolify.
+
 [Full deployment guide →](https://docs.bytebot.ai/quickstart)
 
 ## How It Works

@@ -1,10 +1,10 @@
-# Extend the pre-built bytebot-desktop image
 FROM ghcr.io/bytebot-ai/bytebot-desktop:edge
 
-# Add additional packages, applications, or customizations here
+COPY packages/bytebotd/root/usr/lib/firefox-esr/defaults/pref/bytebot-firefox.js /usr/lib/firefox-esr/defaults/pref/bytebot-firefox.js
+COPY docker/bytebot-desktop-entrypoint.sh /usr/local/bin/bytebot-desktop-entrypoint.sh
 
-# Expose the bytebotd service port
+RUN chmod 755 /usr/local/bin/bytebot-desktop-entrypoint.sh
+
 EXPOSE 9990
 
-# Start the bytebotd service
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf", "-n"]
+ENTRYPOINT ["/usr/local/bin/bytebot-desktop-entrypoint.sh"]

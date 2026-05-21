@@ -9,14 +9,76 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const dev = process.env.NODE_ENV !== "production";
-const hostname = process.env.HOSTNAME || "localhost";
+const hostname = process.env.HOST || process.env.HOSTNAME || "0.0.0.0";
 const port = parseInt(process.env.PORT || "9992", 10);
 
-// Backend URLs
-const BYTEBOT_AGENT_BASE_URL = process.env.BYTEBOT_AGENT_BASE_URL;
-const BYTEBOT_DESKTOP_VNC_URL = process.env.BYTEBOT_DESKTOP_VNC_URL;
+function requireUrlEnv(name: string, allowedProtocols: string[]): URL {
+  const value = process.env[name];
+
+  if (!value) {
+    throw new Error(`${name} is required`);
+  }
+
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid URL. Received: ${value}`);
+  }
+
+  if (!allowedProtocols.includes(url.protocol)) {
+    throw new Error(
+      `${name} must use one of: ${allowedProtocols.join(", ")}. Received: ${url.protocol}`,
+    );
+  }
+
+  return url;
+}
+
+const agentBaseUrl = requireUrlEnv("BYTEBOT_AGENT_BASE_URL", [
+  "http:",
+  "https:",
+]);
+const desktopVncUrl = requireUrlEnv("BYTEBOT_DESKTOP_VNC_URL", [
+  "http:",
+  "https:",
+  "ws:",
+  "wss:",
+]);
 
 const app = next({ dev, hostname, port });
+
+function getDesktopHttpBaseUrl() {
+  const protocol =
+    desktopVncUrl.protocol === "wss:"
+      ? "https:"
+      : desktopVncUrl.protocol === "ws:"
+        ? "http:"
+        : desktopVncUrl.protocol;
+  return `${protocol}//${desktopVncUrl.host}`;
+}
+
+function getDesktopWebSocketBaseUrl() {
+  const protocol =
+    desktopVncUrl.protocol === "https:"
+      ? "wss:"
+      : desktopVncUrl.protocol === "http:"
+        ? "ws:"
+        : desktopVncUrl.protocol;
+  return `${protocol}//${desktopVncUrl.host}`;
+}
+
+function getMountedTasksProxyPath(path = "/") {
+  return `/socket.io${path}`;
+}
+
+function getUpgradeTasksProxyPath(path = "/socket.io") {
+  return path.replace(/^\/api\/proxy\/tasks/, "/socket.io");
+}
+
+function getDesktopProxyPath(path = "") {
+  return desktopVncUrl.pathname + path.replace(/^\/api\/proxy\/websockify/, "");
+}
 
 app
   .prepare()
@@ -31,22 +93,108 @@ app
 
     // WebSocket proxy for Socket.IO connections to backend
     const tasksProxy = createProxyMiddleware({
-      target: BYTEBOT_AGENT_BASE_URL,
+      target: agentBaseUrl.toString(),
       ws: true,
-      pathRewrite: { "^/api/proxy/tasks": "/socket.io" },
+      changeOrigin: true,
+    });
+    const novncProxy = createProxyMiddleware({
+      target: getDesktopHttpBaseUrl(),
+      changeOrigin: true,
+      pathRewrite: (path) => `/novnc${path}`,
     });
 
     // Apply HTTP proxies
-    expressApp.use("/api/proxy/tasks", tasksProxy);
+    expressApp.use("/api/proxy/tasks", (req, res, nextMiddleware) => {
+      req.url = getMountedTasksProxyPath(req.url);
+      tasksProxy(req, res, nextMiddleware);
+    });
+    expressApp.use("/api/proxy/novnc", novncProxy);
+    expressApp.get("/api/proxy/desktop/screenshot", async (_req, res) => {
+      try {
+        const response = await fetch(`${getDesktopHttpBaseUrl()}/computer-use`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ action: "screenshot" }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          res.status(response.status).json({
+            error: "desktop_screenshot_failed",
+            details: errorText,
+          });
+          return;
+        }
+
+        const payload = await response.json();
+        res.json(payload);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "unknown desktop error";
+        res.status(502).json({
+          error: "desktop_proxy_unavailable",
+          details: message,
+        });
+      }
+    });
+    expressApp.post(
+      "/api/proxy/desktop/browser-action",
+      express.json({ limit: "1mb" }),
+      async (req, res) => {
+        try {
+          const body = JSON.stringify(req.body ?? {});
+          const targets = [
+            `${getDesktopHttpBaseUrl()}/input-tracking/browser-action`,
+            `${getDesktopHttpBaseUrl()}/computer-use`,
+          ];
+
+          for (const target of targets) {
+            const response = await fetch(target, {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+              },
+              body,
+            });
+
+            if (response.status === 404 && target.endsWith("/browser-action")) {
+              continue;
+            }
+
+            const payload = await response.text();
+            res.status(response.status);
+            if (payload) {
+              res.type(
+                response.headers.get("content-type") || "application/json",
+              );
+              res.send(payload);
+              return;
+            }
+
+            res.end();
+            return;
+          }
+
+          res.status(404).json({
+            error: "desktop_browser_action_unavailable",
+            details: "No compatible desktop action endpoint is available.",
+          });
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "unknown desktop error";
+          res.status(502).json({
+            error: "desktop_browser_action_failed",
+            details: message,
+          });
+        }
+      },
+    );
     expressApp.use("/api/proxy/websockify", (req, res) => {
-      console.log("Proxying websockify request");
-      // Rewrite path
-      const targetUrl = new URL(BYTEBOT_DESKTOP_VNC_URL!);
-      req.url =
-        targetUrl.pathname +
-        (req.url?.replace(/^\/api\/proxy\/websockify/, "") || "");
+      req.url = getDesktopProxyPath(req.url);
       vncProxy.web(req, res, {
-        target: `${targetUrl.protocol}//${targetUrl.host}`,
+        target: getDesktopHttpBaseUrl(),
       });
     });
 
@@ -61,17 +209,14 @@ app
       );
 
       if (pathname.startsWith("/api/proxy/tasks")) {
+        request.url = getUpgradeTasksProxyPath(request.url);
         return tasksProxy.upgrade(request, socket as any, head);
       }
 
       if (pathname.startsWith("/api/proxy/websockify")) {
-        const targetUrl = new URL(BYTEBOT_DESKTOP_VNC_URL!);
-        request.url =
-          targetUrl.pathname +
-          (request.url?.replace(/^\/api\/proxy\/websockify/, "") || "");
-        console.log("Proxying websockify upgrade request: ", request.url);
+        request.url = getDesktopProxyPath(request.url);
         return vncProxy.ws(request, socket as any, head, {
-          target: `${targetUrl.protocol}//${targetUrl.host}`,
+          target: getDesktopWebSocketBaseUrl(),
         });
       }
 
