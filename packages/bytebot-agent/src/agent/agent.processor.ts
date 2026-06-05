@@ -144,7 +144,7 @@ export class AgentProcessor {
   }
 
   private isBrowserResearchTask(description: string): boolean {
-    return /search|recherche|compare|compar|inspect|analy[sz]e|research|rank|trend|best|meilleur|top|evidence|preuve|collect|gather|find|trouve|review|evaluate|reproduce|reproduire/i.test(
+    return /search|recherche|compare|compar|inspect|analy[sz]e|research|rank|trend|best|meilleur|top|hashtag|commentaires?|comments?|evidence|preuve|collect|gather|r[ée]cup[èe]re|extraire|extract|find|trouve|review|evaluate|reproduce|reproduire/i.test(
       description,
     );
   }
@@ -186,6 +186,27 @@ export class AgentProcessor {
       this.isBrowserResearchTask(taskDescription) &&
       this.isNavigationOnlyBrowserCompletion(completionDescription)
     );
+  }
+
+  private shouldRejectBrowserStatusWithoutComputerAction(
+    taskDescription: string,
+    statusDescription: string,
+    computerActionCount: number,
+  ): boolean {
+    if (!this.isBrowserTask(taskDescription) || computerActionCount > 0) {
+      return false;
+    }
+
+    if (this.isSimpleBrowserFocusTask(taskDescription)) {
+      return false;
+    }
+
+    const refusalWithoutAttempt =
+      /\b(can(?:not|'t)|unable|impossible|ne peux pas|ne peut pas|pas possible|outils? (?:actuels? )?ne permettent pas)\b/i.test(
+        statusDescription,
+      );
+
+    return this.isBrowserResearchTask(taskDescription) || refusalWithoutAttempt;
   }
 
   private flattenMessageContent(messages: Message[]): MessageContentBlock[] {
@@ -1050,6 +1071,18 @@ export class AgentProcessor {
       let rejectedBrowserCompletionMessage: string | null = null;
 
       if (setTaskStatusToolUseBlock) {
+        const computerActionCount = this.isBrowserTask(task.description)
+          ? this.countComputerToolUseBlocks([
+              ...this.flattenMessageContent(browserTaskHistory ?? messages),
+              ...messageContentBlocks,
+            ])
+          : 0;
+        const browserStatusWithoutAttemptWasRejected =
+          this.shouldRejectBrowserStatusWithoutComputerAction(
+            task.description,
+            setTaskStatusToolUseBlock.input.description,
+            computerActionCount,
+          );
         const completionWasRejected =
           this.isBrowserTask(task.description) &&
           setTaskStatusToolUseBlock.input.status === 'completed' &&
@@ -1058,11 +1091,13 @@ export class AgentProcessor {
             setTaskStatusToolUseBlock.input.description,
           );
 
-        if (completionWasRejected) {
-          rejectedBrowserCompletionMessage = `${BROWSER_COMPLETION_REMINDER_MARKER} Do not mark the task completed yet. The user asked for browser research or comparison work, and the previous completion summary only reported page navigation: "${setTaskStatusToolUseBlock.input.description}". Continue using computer_* tools until the requested comparison or research result is actually complete, then call set_task_status again with a summary of what was accomplished.`;
+        if (browserStatusWithoutAttemptWasRejected || completionWasRejected) {
+          rejectedBrowserCompletionMessage = browserStatusWithoutAttemptWasRejected
+            ? `${BROWSER_TOOL_REMINDER_MARKER} Do not mark this browser task as complete, failed, or needing help before trying the browser. Firefox is available. You must first use computer_screenshot and computer_application with Firefox, then navigate to the requested site/search and verify the real blocker on-screen if one exists.`
+            : `${BROWSER_COMPLETION_REMINDER_MARKER} Do not mark the task completed yet. The user asked for browser research or comparison work, and the previous completion summary only reported page navigation: "${setTaskStatusToolUseBlock.input.description}". Continue using computer_* tools until the requested comparison or research result is actually complete, then call set_task_status again with a summary of what was accomplished.`;
 
           this.logger.warn(
-            `Task ${taskId} attempted premature browser completion: ${setTaskStatusToolUseBlock.input.description}`,
+            `Task ${taskId} attempted premature browser terminal status: ${setTaskStatusToolUseBlock.input.description}`,
           );
 
           generatedToolResults.push({
