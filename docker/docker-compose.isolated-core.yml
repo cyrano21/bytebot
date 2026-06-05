@@ -28,8 +28,8 @@ services:
       dockerfile: bytebot-llm-proxy/Dockerfile
     container_name: bytebot-llm-proxy
     restart: unless-stopped
-    ports:
-      - "40001:4000"
+    expose:
+      - "4000"
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
