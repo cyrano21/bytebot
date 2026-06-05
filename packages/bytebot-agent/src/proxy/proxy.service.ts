@@ -941,6 +941,23 @@ export class ProxyService implements BytebotAgentService {
     }
 
     if (
+      typeof candidate.command === 'string' &&
+      candidate.command.trim() !== ''
+    ) {
+      return {
+        type: MessageContentType.ToolUse,
+        id:
+          typeof candidate.id === 'string' && candidate.id.trim() !== ''
+            ? candidate.id
+            : randomUUID(),
+        name: candidate.command,
+        input: this.normalizeToolInput(
+          candidate.input ?? candidate.args ?? candidate.arguments ?? {},
+        ),
+      } as ToolUseContentBlock;
+    }
+
+    if (
       candidate.type === 'function' &&
       this.isRecord(candidate.function) &&
       typeof candidate.function.name === 'string' &&
