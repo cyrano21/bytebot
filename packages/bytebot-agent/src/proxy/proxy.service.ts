@@ -905,7 +905,9 @@ export class ProxyService implements BytebotAgentService {
   }
 
   private unwrapJsonFence(payload: string): string {
-    const fencedMatch = payload.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    const fencedMatch = payload.match(
+      /^```(?:json|tool_code|toolcall|tool-call)?\s*([\s\S]*?)\s*```$/i,
+    );
     return fencedMatch ? fencedMatch[1].trim() : payload;
   }
 

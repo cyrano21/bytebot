@@ -167,6 +167,23 @@ export class AgentProcessor {
     );
   }
 
+  private isVagueBrowserResearchCompletion(description: string): boolean {
+    const claimsDone =
+      /\b(done|completed|termin[ée]e?|fini|r[ée]cup[ée]r[ée]s?|présent[ée]s?|analyse)\b/i.test(
+        description,
+      );
+    const lacksConcreteFinding =
+      !/\b(commentaire|comment|vid[ée]o|url|https?:\/\/|@|#|captcha|connexion|login|bloqu[ée]|blocked|access denied)\b/i.test(
+        description,
+      );
+    const handoffInsteadOfResult =
+      /\b(consulte[rz]?|veuillez consulter|voir les liens|liens et vid[ée]os|donn[ée]es recherch[ée]es)\b/i.test(
+        description,
+      );
+
+    return (claimsDone && lacksConcreteFinding) || handoffInsteadOfResult;
+  }
+
   private shouldRejectBrowserCompletion(
     taskDescription: string,
     completionDescription: string,
@@ -184,7 +201,8 @@ export class AgentProcessor {
 
     return (
       this.isBrowserResearchTask(taskDescription) &&
-      this.isNavigationOnlyBrowserCompletion(completionDescription)
+      (this.isNavigationOnlyBrowserCompletion(completionDescription) ||
+        this.isVagueBrowserResearchCompletion(completionDescription))
     );
   }
 
