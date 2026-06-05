@@ -3,8 +3,8 @@ name: bytebot-desktop-worker
 services:
   bytebot-desktop:
     build:
-      context: ..
-      dockerfile: docker/bytebot-desktop.Dockerfile
+      context: .
+      dockerfile: bytebot-desktop.Dockerfile
     image: ghcr.io/bytebot-ai/bytebot-desktop:edge
     container_name: bytebot-desktop
     restart: unless-stopped
