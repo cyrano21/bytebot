@@ -546,6 +546,11 @@ export function VncViewer({ viewOnly = true }: VncViewerProps) {
 
   const canInteract =
     !viewOnly && (viewerState === "connected" || Boolean(fallbackImage));
+  const shouldShowStatus =
+    !fallbackImage &&
+    (viewerState === "loading" ||
+      viewerState === "disconnected" ||
+      viewerState === "error");
 
   return (
     <div ref={containerRef} className="relative h-full w-full bg-black">
@@ -558,15 +563,9 @@ export function VncViewer({ viewOnly = true }: VncViewerProps) {
           className="absolute inset-0 object-contain"
         />
       )}
-      {(viewerState === "loading" ||
-        viewerState === "disconnected" ||
-        viewerState === "error") && (
+      {shouldShowStatus && (
         <div
-          className={`pointer-events-none absolute z-10 flex text-left text-xs text-white ${
-            fallbackImage
-              ? "bottom-3 left-3 right-3 justify-start sm:right-auto"
-              : "inset-x-3 bottom-3 justify-start sm:right-auto"
-          }`}
+          className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex justify-start text-left text-xs text-white sm:right-auto"
         >
           <div
             className="max-w-[min(420px,calc(100vw-1.5rem))] rounded-lg bg-neutral-950/80 px-3 py-2 shadow-lg backdrop-blur"
@@ -575,10 +574,8 @@ export function VncViewer({ viewOnly = true }: VncViewerProps) {
             {viewerState !== "loading" && (
               <p className="mt-1 leading-4 text-neutral-300">
                 {secureContextRequired
-                  ? canInteract
-                    ? "Live indisponible sans HTTPS/WSS. L'apercu reste pilotable."
-                    : "Live indisponible sans HTTPS/WSS."
-                  : "Le bureau reste visible pendant la reconnexion."}
+                  ? "Connexion live indisponible sur cette page."
+                  : "Connexion live en cours."}
               </p>
             )}
           </div>
@@ -605,13 +602,11 @@ export function VncViewer({ viewOnly = true }: VncViewerProps) {
           }}
           onDisconnect={() => {
             setViewerState("disconnected");
-            setStatusMessage("Desktop deconnecte, reconnexion en cours...");
+            setStatusMessage("Connexion au bureau virtuel...");
           }}
           onSecurityFailure={() => {
             setViewerState("error");
-            setStatusMessage(
-              "La connexion au bureau virtuel a ete refusee. Verifiez HTTPS/WSS et websockify.",
-            );
+            setStatusMessage("Connexion live indisponible.");
           }}
           style={{ width: "100%", height: "100%" }}
         />
