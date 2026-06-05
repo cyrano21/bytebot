@@ -562,25 +562,23 @@ export function VncViewer({ viewOnly = true }: VncViewerProps) {
         viewerState === "disconnected" ||
         viewerState === "error") && (
         <div
-          className={`absolute z-10 flex px-6 text-center text-sm text-white ${
+          className={`pointer-events-none absolute z-10 flex text-left text-xs text-white ${
             fallbackImage
-              ? "inset-x-0 bottom-0 justify-center pb-4"
-              : "inset-0 items-center justify-center bg-neutral-950/80"
+              ? "bottom-3 left-3 right-3 justify-start sm:right-auto"
+              : "inset-x-3 bottom-3 justify-start sm:right-auto"
           }`}
         >
           <div
-            className={`max-w-md rounded-xl ${
-              fallbackImage ? "bg-neutral-950/75 px-4 py-3" : ""
-            }`}
+            className="max-w-[min(420px,calc(100vw-1.5rem))] rounded-lg bg-neutral-950/80 px-3 py-2 shadow-lg backdrop-blur"
           >
-            <p className="font-medium">{statusMessage}</p>
+            <p className="font-medium leading-5">{statusMessage}</p>
             {viewerState !== "loading" && (
-              <p className="mt-2 text-xs text-neutral-300">
+              <p className="mt-1 leading-4 text-neutral-300">
                 {secureContextRequired
                   ? canInteract
-                    ? "Le flux VNC live ne demarrera pas sans HTTPS/WSS, mais vous pouvez encore interagir via l'apercu."
-                    : "Le fallback screenshot peut rester disponible, mais le flux VNC live ne demarrera pas sans contexte securise."
-                  : "Verifiez que `BYTEBOT_DESKTOP_VNC_URL` pointe vers un service websockify accessible."}
+                    ? "Live indisponible sans HTTPS/WSS. L'apercu reste pilotable."
+                    : "Live indisponible sans HTTPS/WSS."
+                  : "Le bureau reste visible pendant la reconnexion."}
               </p>
             )}
           </div>
@@ -607,9 +605,7 @@ export function VncViewer({ viewOnly = true }: VncViewerProps) {
           }}
           onDisconnect={() => {
             setViewerState("disconnected");
-            setStatusMessage(
-              "Desktop deconnecte. Tentative de reconnexion...",
-            );
+            setStatusMessage("Desktop deconnecte, reconnexion en cours...");
           }}
           onSecurityFailure={() => {
             setViewerState("error");
