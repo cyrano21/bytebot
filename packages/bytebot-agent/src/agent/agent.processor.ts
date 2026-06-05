@@ -59,6 +59,7 @@ const BROWSER_COMPLETION_REMINDER_MARKER =
   '[BYTEBOT_BROWSER_COMPLETION_REQUIRED]';
 const MAX_BROWSER_TOOL_ACTIONS_BEFORE_COMPLETION_REMINDER = 10;
 const MAX_BROWSER_TOOL_ACTIONS_BEFORE_REVIEW = 24;
+const MAX_BROWSER_TEXT_ONLY_REMINDERS_BEFORE_REVIEW = 5;
 const HOSTNAME_VALIDATION_TIMEOUT_MS = 3_000;
 
 @Injectable()
@@ -242,6 +243,12 @@ export class AgentProcessor {
 
   private hasMarker(messages: Message[], marker: string): boolean {
     return this.textBlocks(messages).some((block) => block.text.includes(marker));
+  }
+
+  private countMarker(messages: Message[], marker: string): number {
+    return this.textBlocks(messages).filter((block) =>
+      block.text.includes(marker),
+    ).length;
   }
 
   private hasComputerAutomationEvidence(messages: Message[]): boolean {
@@ -1235,6 +1242,35 @@ export class AgentProcessor {
                   {
                     type: MessageContentType.Text,
                     text: `${BROWSER_TOOL_REMINDER_MARKER} The browser is already open on a live page and the task is not complete yet. Your next response must use at least one computer_* tool on the current page, or call set_task_status only after the requested outcome is actually complete. Do not answer with instructions for the user to click, type, accept cookies, or continue manually.`,
+                  },
+                ],
+                role: Role.USER,
+                taskId,
+              });
+
+              if (this.isProcessing) {
+                setImmediate(() => this.runIteration(taskId));
+              }
+              return;
+            }
+
+            const textOnlyReminderCount = this.countMarker(
+              browserMessages,
+              BROWSER_TOOL_REMINDER_MARKER,
+            );
+
+            if (
+              textOnlyReminderCount <
+              MAX_BROWSER_TEXT_ONLY_REMINDERS_BEFORE_REVIEW
+            ) {
+              this.logger.warn(
+                `Task ${taskId} produced browser text only after reminder (${textOnlyReminderCount}/${MAX_BROWSER_TEXT_ONLY_REMINDERS_BEFORE_REVIEW}); requesting another computer-tool action`,
+              );
+              await this.messagesService.create({
+                content: [
+                  {
+                    type: MessageContentType.Text,
+                    text: `${BROWSER_TOOL_REMINDER_MARKER} Your previous response was text only, but the browser research task is not complete. Continue with a real computer_* tool call now. For TikTok/comment tasks, navigate to TikTok or a search result, open relevant videos, and collect actual visible comments or report the concrete on-screen blocker. Do not summarize partial search snippets as the final answer.`,
                   },
                 ],
                 role: Role.USER,
