@@ -124,7 +124,7 @@ export class AgentProcessor {
   }
 
   private isBrowserTask(description: string): boolean {
-    return /firefox|browser|google|internet|website|web site|site web|navigate|url|search|recherche|tiktok|shopify|oberlo/i.test(
+    return /firefox|browser|google|internet|website|web site|site web|navigate|url|search|recherche|tik\s*tok|hashtag|commentaires?|comments?|shopify|oberlo/i.test(
       description,
     );
   }
