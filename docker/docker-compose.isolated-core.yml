@@ -101,12 +101,17 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+    labels:
+      - "traefik.docker.network=coolify"
     networks:
       - bytebot-core-network
+      - coolify
 
 networks:
   bytebot-core-network:
     driver: bridge
+  coolify:
+    external: true
 
 volumes:
   postgres_data:
