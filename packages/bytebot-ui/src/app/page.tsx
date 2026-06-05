@@ -142,7 +142,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className="flex min-h-screen flex-col overflow-hidden">
       <Header />
 
       <main className="flex flex-1 flex-col overflow-hidden">
@@ -175,7 +175,7 @@ export default function Home() {
                       )
                     }
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="min-h-11 w-full">
                       <SelectValue placeholder="Select a model" />
                     </SelectTrigger>
                     <SelectContent className="max-w-md">
@@ -224,8 +224,8 @@ export default function Home() {
         </div>
 
         {/* Mobile layout - only visible on small/medium screens */}
-        <div className="flex h-full flex-col lg:hidden">
-          <div className="flex flex-1 flex-col items-center overflow-y-auto px-4 pt-10">
+        <div className="flex min-h-full flex-col lg:hidden">
+          <div className="flex flex-1 flex-col items-center overflow-y-auto px-3 pt-8 sm:px-4 sm:pt-10">
             <div className="flex w-full max-w-xl flex-col items-center pb-10">
               <div className="mb-6 flex w-full flex-col items-start justify-start">
                 <h1 className="text-bytebot-bronze-light-12 mb-1 text-2xl">
@@ -233,7 +233,7 @@ export default function Home() {
                 </h1>
               </div>
 
-              <div className="bg-bytebot-bronze-light-2 border-bytebot-bronze-light-5 borderw-full mb-10 rounded-2xl p-2">
+              <div className="bg-bytebot-bronze-light-2 border-bytebot-bronze-light-5 mb-10 w-full rounded-2xl border p-2">
                 <ChatInput
                   input={input}
                   isLoading={isLoading}
@@ -251,7 +251,7 @@ export default function Home() {
                       )
                     }
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="min-h-11 w-full">
                       <SelectValue placeholder="Select a model" />
                     </SelectTrigger>
                     <SelectContent className="max-w-md">

@@ -73,25 +73,30 @@ export const DesktopContainer: React.FC<DesktopContainerProps> = ({
 
   return (
     <div
-      className={`border-bytebot-bronze-light-7 flex w-full flex-col rounded-t-lg border-t border-r border-l ${className}`}
+      className={`border-bytebot-bronze-light-7 flex w-full min-w-0 flex-col rounded-t-lg border-t border-r border-l ${className}`}
     >
       {/* Header */}
-      <div className="bg-bytebot-bronze-light-2 border-bytebot-bronze-light-7 flex items-center justify-between rounded-t-lg border-b px-4 py-2">
+      <div className="bg-bytebot-bronze-light-2 border-bytebot-bronze-light-7 flex flex-col gap-2 rounded-t-lg border-b px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-4">
         {/* Status Header */}
-        <div className="flex items-center gap-2">
+        <div className="min-w-0">
           <VirtualDesktopStatusHeader status={status} />
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">{children}</div>
+        <div className="flex flex-wrap items-center gap-2">{children}</div>
       </div>
 
-      <div ref={containerRef} className="flex aspect-[4/3] overflow-hidden">
+      <div
+        ref={containerRef}
+        className="flex aspect-[4/3] min-h-[220px] items-center justify-center overflow-hidden sm:min-h-[320px]"
+      >
         <div
           className="max-w-full"
           style={{
             width: `${containerSize.width}px`,
             height: `${containerSize.height}px`,
+            maxWidth: "100%",
+            maxHeight: "100%",
           }}
         >
           {screenshot ? (

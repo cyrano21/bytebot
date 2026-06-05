@@ -117,13 +117,13 @@ export default function TaskPage() {
   }, [currentTaskId, taskId, router]);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className="flex min-h-screen flex-col overflow-hidden">
       <Header />
 
-      <main className="m-2 flex-1 overflow-hidden px-2 py-4">
-        <div className="grid h-full grid-cols-7 gap-4">
+      <main className="flex flex-1 overflow-y-auto px-3 py-4 sm:px-4 lg:overflow-hidden">
+        <div className="grid min-h-full w-full gap-4 lg:h-full lg:grid-cols-7">
           {/* Main container */}
-          <div className="col-span-4">
+          <section className="min-w-0 lg:col-span-4">
             <DesktopContainer
               screenshot={isTaskInactive() ? currentScreenshot : null}
               viewOnly={vncViewOnly()}
@@ -186,14 +186,14 @@ export default function TaskPage() {
                 </DropdownMenu>
               )}
             </DesktopContainer>
-          </div>
+          </section>
 
           {/* Chat Area */}
-          <div className="col-span-3 flex h-full min-h-0 flex-col">
+          <section className="flex min-h-[520px] min-w-0 flex-col lg:col-span-3 lg:h-full lg:min-h-0">
             {/* Messages scrollable area */}
             <div
               ref={chatContainerRef}
-              className="hide-scrollbar min-h-0 flex-1 overflow-scroll px-4"
+              className="hide-scrollbar min-h-0 flex-1 overflow-y-auto px-0 sm:px-2 lg:px-4"
             >
               <ChatContainer
                 scrollRef={chatContainerRef}
@@ -212,7 +212,7 @@ export default function TaskPage() {
                 loadMoreMessages={loadMoreMessages}
               />
             </div>
-          </div>
+          </section>
         </div>
       </main>
     </div>
