@@ -935,7 +935,7 @@ export class ProxyService implements BytebotAgentService {
           typeof candidate.id === 'string' && candidate.id.trim() !== ''
             ? candidate.id
             : randomUUID(),
-        name: candidate.name,
+        name: this.normalizeToolName(candidate.name),
         input: this.normalizeToolInput(
           candidate.input ?? candidate.arguments ?? {},
         ),
@@ -952,7 +952,7 @@ export class ProxyService implements BytebotAgentService {
           typeof candidate.id === 'string' && candidate.id.trim() !== ''
             ? candidate.id
             : randomUUID(),
-        name: candidate.command,
+        name: this.normalizeToolName(candidate.command),
         input: this.normalizeToolInput(
           candidate.input ?? candidate.args ?? candidate.arguments ?? {},
         ),
@@ -971,12 +971,22 @@ export class ProxyService implements BytebotAgentService {
           typeof candidate.id === 'string' && candidate.id.trim() !== ''
             ? candidate.id
             : randomUUID(),
-        name: candidate.function.name,
+        name: this.normalizeToolName(candidate.function.name),
         input: this.normalizeToolInput(candidate.function.arguments ?? {}),
       } as ToolUseContentBlock;
     }
 
     return null;
+  }
+
+  private normalizeToolName(name: string): string {
+    const normalizedName = name.trim();
+
+    if (/^computer_(?:capture|observe)$/i.test(normalizedName)) {
+      return 'computer_screenshot';
+    }
+
+    return normalizedName;
   }
 
   private normalizeToolInput(input: unknown): Record<string, unknown> {
