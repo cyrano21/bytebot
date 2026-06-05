@@ -112,12 +112,12 @@ function TasksPageContent() {
   };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className="flex min-h-screen flex-col overflow-hidden">
       <Header />
 
-      <main className="flex-1 overflow-scroll px-6 pt-6 pb-10">
-        <div className="mx-auto max-w-3xl">
-          <h1 className="mb-6 text-xl font-medium">Tasks</h1>
+      <main className="flex-1 overflow-y-auto px-3 pt-5 pb-10 sm:px-6">
+        <div className="mx-auto w-full max-w-3xl">
+          <h1 className="mb-5 text-xl font-medium sm:mb-6">Tasks</h1>
 
           {!isLoading && (
             <TaskTabs
@@ -133,7 +133,7 @@ function TasksPageContent() {
               <p className="text-gray-500">Loading tasks...</p>
             </div>
           ) : tasks.length === 0 ? (
-            <div className="bg-bytebot-bronze-light-2 border-bytebot-bronze-light-7 rounded-xl border p-8 text-center">
+            <div className="bg-bytebot-bronze-light-2 border-bytebot-bronze-light-7 rounded-xl border p-5 text-center sm:p-8">
               <div className="flex flex-col items-center justify-center">
                 <h3 className="text-bytebot-bronze-light-12 mb-1 text-lg font-medium">
                   No tasks yet

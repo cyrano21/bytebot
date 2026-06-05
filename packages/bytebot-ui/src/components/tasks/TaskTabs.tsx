@@ -68,7 +68,7 @@ export const TaskTabs: React.FC<TaskTabsProps> = ({
 
   return (
     <div className="border-bytebot-bronze-light-7 mb-6 border-b">
-      <div className="flex overflow-x-auto">
+      <div className="-mx-1 flex max-w-full overflow-x-auto px-1">
         {tabs.map(([tabKey, config]) => {
           const isActive = activeTab === tabKey;
           const count = taskCounts[tabKey] || 0;
@@ -77,7 +77,7 @@ export const TaskTabs: React.FC<TaskTabsProps> = ({
             <button
               key={tabKey}
               onClick={() => onTabChange(tabKey)}
-              className={`flex cursor-pointer items-center space-x-2 border-b-2 px-4 py-3 whitespace-nowrap transition-colors ${
+              className={`flex min-h-11 shrink-0 cursor-pointer items-center space-x-2 border-b-2 px-3 py-3 whitespace-nowrap transition-colors sm:px-4 ${
                 isActive
                   ? "border-bytebot-bronze-dark-7 text-bytebot-bronze-dark-7"
                   : "text-bytebot-bronze-light-10 hover:text-bytebot-bronze-dark-7 border-transparent"

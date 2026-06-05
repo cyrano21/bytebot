@@ -176,13 +176,15 @@ export function ChatInput({
             {selectedFiles.map((file, index) => (
               <div
                 key={index}
-                className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-sm"
+                className="flex min-w-0 items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-sm"
               >
-                <span className="max-w-[200px] truncate">{file.name}</span>
+                <span className="max-w-[160px] truncate sm:max-w-[200px]">
+                  {file.name}
+                </span>
                 <button
                   type="button"
                   onClick={() => removeFile(index)}
-                  className="ml-1 rounded-sm hover:bg-gray-200"
+                  className="ml-1 flex min-h-8 min-w-8 items-center justify-center rounded-sm hover:bg-gray-200"
                 >
                   <HugeiconsIcon
                     icon={Cancel01Icon}
@@ -202,7 +204,7 @@ export function ChatInput({
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
           className={cn(
-            "placeholder:text-bytebot-bronze-light-10 w-full rounded-lg py-2 pr-16 pl-3 placeholder:text-[13px]",
+            "placeholder:text-bytebot-bronze-light-10 w-full rounded-lg py-2 pr-24 pl-3 placeholder:text-[13px]",
             "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-bytebot-bronze-light-7 flex min-w-0 border bg-transparent text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
             "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
             "resize-none overflow-hidden",
@@ -221,7 +223,7 @@ export function ChatInput({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-6 w-6 cursor-pointer rounded-sm hover:bg-gray-100"
+            className="h-10 w-10 cursor-pointer rounded-sm hover:bg-gray-100"
             onClick={triggerFileInput}
             disabled={isLoading}
           >
@@ -238,7 +240,7 @@ export function ChatInput({
               type="submit"
               variant="ghost"
               size="icon"
-              className="bg-bytebot-bronze-dark-7 hover:bg-bytebot-bronze-dark-6 h-6 w-6 cursor-pointer rounded-sm"
+              className="bg-bytebot-bronze-dark-7 hover:bg-bytebot-bronze-dark-6 h-10 w-10 cursor-pointer rounded-sm"
               disabled={isLoading}
             >
               <HugeiconsIcon
