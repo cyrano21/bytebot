@@ -22,6 +22,7 @@ import { AddTaskMessageDto } from './dto/add-task-message.dto';
 import { TasksGateway } from './tasks.gateway';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { TikTokResearchService } from '../tiktok/tiktok-research.service';
 
 @Injectable()
 export class TasksService {
@@ -33,26 +34,55 @@ export class TasksService {
     private readonly tasksGateway: TasksGateway,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly tikTokResearchService: TikTokResearchService,
   ) {
     this.logger.log('TasksService initialized');
   }
 
   async create(createTaskDto: CreateTaskDto): Promise<Task> {
+    const description =
+      typeof createTaskDto?.description === 'string'
+        ? createTaskDto.description.trim()
+        : '';
+    if (!description) {
+      throw new BadRequestException(
+        'Task description is required to create a task',
+      );
+    }
+
     this.logger.log(
-      `Creating new task with description: ${createTaskDto.description}`,
+      `Creating new task with description: ${description}`,
     );
+
+    const tikTokResearchResult =
+      await this.tikTokResearchService.collectComments(description);
 
     const task = await this.prisma.$transaction(async (prisma) => {
       // Create the task first
       this.logger.debug('Creating task record in database');
       const task = await prisma.task.create({
         data: {
-          description: createTaskDto.description,
+          description,
           type: createTaskDto.type || TaskType.IMMEDIATE,
           priority: createTaskDto.priority || TaskPriority.MEDIUM,
-          status: TaskStatus.PENDING,
+          status: tikTokResearchResult ? TaskStatus.COMPLETED : TaskStatus.PENDING,
           createdBy: createTaskDto.createdBy || Role.USER,
           model: createTaskDto.model,
+          ...(tikTokResearchResult
+            ? {
+                executedAt: new Date(),
+                completedAt: new Date(),
+                result: {
+                  type: 'tiktok_comment_research',
+                  hashtag: tikTokResearchResult.hashtag,
+                  source: tikTokResearchResult.source,
+                  comments: tikTokResearchResult.comments,
+                  ...(tikTokResearchResult.warning
+                    ? { warning: tikTokResearchResult.warning }
+                    : {}),
+                } as unknown as Prisma.InputJsonValue,
+              }
+            : {}),
           ...(createTaskDto.scheduledFor
             ? { scheduledFor: createTaskDto.scheduledFor }
             : {}),
@@ -99,7 +129,7 @@ export class TasksService {
           content: [
             {
               type: 'text',
-              text: `${createTaskDto.description} ${filesDescription}`,
+              text: `${description} ${filesDescription}`,
             },
           ] as Prisma.InputJsonValue,
           role: Role.USER,
@@ -107,6 +137,23 @@ export class TasksService {
         },
       });
       this.logger.debug(`Initial message created for task ID: ${task.id}`);
+
+      if (tikTokResearchResult) {
+        await prisma.message.create({
+          data: {
+            taskId: task.id,
+            role: Role.ASSISTANT,
+            content: [
+              {
+                type: 'text',
+                text: this.tikTokResearchService.formatResult(
+                  tikTokResearchResult,
+                ),
+              },
+            ] as unknown as Prisma.InputJsonValue,
+          },
+        });
+      }
 
       return task;
     });
