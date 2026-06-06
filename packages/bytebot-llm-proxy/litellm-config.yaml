@@ -93,6 +93,14 @@ model_list:
       api_key: os.environ/OPENROUTER_API_KEY
       drop_params: true
 
+  # Modèle OpenRouter gratuit avec tool-use + vision (computer-use ready)
+  # Validé: émet de vrais tool_calls et accepte les images (screenshots).
+  - model_name: openrouter-kimi-k2-free
+    litellm_params:
+      model: openrouter/moonshotai/kimi-k2.6:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      drop_params: true
+
   # Modèles Ollama Cloud (DÉSACTIVÉS - URL invalide)
   # - model_name: ollama-cloud-llama2
   #   litellm_params:
