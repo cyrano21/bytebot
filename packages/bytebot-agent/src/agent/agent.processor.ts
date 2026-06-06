@@ -61,6 +61,7 @@ const MAX_BROWSER_TOOL_ACTIONS_BEFORE_COMPLETION_REMINDER = 10;
 const MAX_BROWSER_TOOL_ACTIONS_BEFORE_REVIEW = 24;
 const MAX_BROWSER_TEXT_ONLY_REMINDERS_BEFORE_REVIEW = 12;
 const MAX_BROWSER_DOMAIN_VALIDATION_REMINDERS_BEFORE_REVIEW = 5;
+const MAX_BROWSER_INVALID_TOOL_ERRORS_BEFORE_REVIEW = 4;
 const HOSTNAME_VALIDATION_TIMEOUT_MS = 3_000;
 
 @Injectable()
@@ -249,6 +250,16 @@ export class AgentProcessor {
   private countMarker(messages: Message[], marker: string): number {
     return this.textBlocks(messages).filter((block) =>
       block.text.includes(marker),
+    ).length;
+  }
+
+  private countTextInBlocks(
+    blocks: MessageContentBlock[],
+    pattern: RegExp,
+  ): number {
+    return blocks.filter(
+      (block): block is TextContentBlock =>
+        block.type === MessageContentType.Text && pattern.test(block.text),
     ).length;
   }
 
@@ -1167,6 +1178,37 @@ export class AgentProcessor {
           role: Role.USER,
           taskId,
         });
+
+        if (this.isBrowserTask(task.description)) {
+          const previousInvalidToolErrors = this.countTextInBlocks(
+            this.flattenMessageContent(browserTaskHistory ?? messages),
+            /Error executing computer_/i,
+          );
+          const currentInvalidToolErrors = generatedToolResults.reduce(
+            (count, result) =>
+              count +
+              this.countTextInBlocks(
+                result.content as MessageContentBlock[],
+                /Error executing computer_/i,
+              ),
+            0,
+          );
+          const invalidToolErrorCount =
+            previousInvalidToolErrors + currentInvalidToolErrors;
+
+          if (
+            invalidToolErrorCount >=
+            MAX_BROWSER_INVALID_TOOL_ERRORS_BEFORE_REVIEW
+          ) {
+            const errorMessage = `Browser task produced ${invalidToolErrorCount} invalid computer tool calls`;
+            this.logger.warn(`Task ${taskId}: ${errorMessage}`);
+            await this.moveTaskToReview(taskId, errorMessage, {
+              content: messageContentBlocks,
+              toolResults: generatedToolResults,
+            });
+            return;
+          }
+        }
       }
 
       if (rejectedBrowserCompletionMessage) {
