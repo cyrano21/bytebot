@@ -34,6 +34,27 @@ const TASK_PRIORITY_WEIGHT: Record<TaskPriority, number> = {
 
 type TaskWithFiles = Task & { files: File[] };
 
+function isTikTokCommentExtractionTask(description: string): boolean {
+  return (
+    /tik\s*tok/i.test(description) &&
+    /(commentaire|commentaires|comment|comments)/i.test(description) &&
+    /(hashtag|#|vid[ée]o|videos?|plus vues?|most viewed|r[ée]cup[èe]re|extract|collect)/i.test(
+      description,
+    )
+  );
+}
+
+function isWeakTikTokCommentModel(model: BytebotAgentModel): boolean {
+  const modelName = model.name.toLowerCase();
+
+  return (
+    model.provider === 'proxy' &&
+    (modelName.includes('nemotron') ||
+      modelName.includes('free') ||
+      modelName.includes('vl-free'))
+  );
+}
+
 @Injectable()
 export class TasksService {
   private readonly logger = new Logger(TasksService.name);
@@ -96,6 +117,15 @@ export class TasksService {
     if (!resolvedModel) {
       throw new BadRequestException(
         'No AI model is configured or currently available for task execution',
+      );
+    }
+
+    if (
+      isTikTokCommentExtractionTask(description) &&
+      isWeakTikTokCommentModel(resolvedModel)
+    ) {
+      throw new BadRequestException(
+        'TikTok comment extraction requires a reliable tool-capable model. The currently available model is openrouter-nemotron-vl-free, which produced invalid browser actions and fabricated comments during validation. Configure a working Gemini/OpenAI/Anthropic model or remove this model from the task.',
       );
     }
 
