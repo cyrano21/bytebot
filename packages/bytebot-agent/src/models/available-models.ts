@@ -53,7 +53,12 @@ function isLikelyGeminiApiKey(apiKey?: string | null): boolean {
     return false;
   }
 
-  return /^AIza[0-9A-Za-z\-_]{20,}$/.test(normalizedKey);
+  // Classic AI Studio keys start with "AIza"; newer Google API keys use an
+  // "AQ." prefix (e.g. "AQ.Ab8R..."). Accept both formats.
+  return (
+    /^AIza[0-9A-Za-z\-_]{20,}$/.test(normalizedKey) ||
+    /^AQ\.[A-Za-z0-9._\-]{20,}$/.test(normalizedKey)
+  );
 }
 
 function hasNonEmptyApiKey(apiKey?: string | null): boolean {
@@ -233,6 +238,79 @@ function getModelExecutionScore(model: BytebotAgentModel): number {
   }
 
   return score;
+}
+
+/**
+ * Returns true when a model can accept image content (screenshots).
+ *
+ * Provider-native multimodal families (Anthropic Claude 3+, OpenAI GPT-4o/4.1,
+ * Google Gemini) are vision-capable. For proxy models we match known
+ * multimodal names. Anything else (e.g. deepseek-v4-flash, deepseek-chat,
+ * groq/mistral/ollama text models) is treated as text-only.
+ */
+export function isVisionCapableModel(model: BytebotAgentModel): boolean {
+  if (
+    model.provider === 'google' ||
+    model.provider === 'anthropic' ||
+    model.provider === 'openai'
+  ) {
+    return true;
+  }
+
+  const name = model.name.toLowerCase();
+  return /(?:^|[-/])(?:vl|vision)|gemini|kimi|llava|pixtral|qwen2.*vl|nemotron[-\w]*vl|gpt-4o|gpt-4\.1|claude|llama-3\.2-vision|internvl|minicpm-v/.test(
+    name,
+  );
+}
+
+/**
+ * Picks the best currently-available vision-capable model, honouring the
+ * optional BYTEBOT_VISION_MODEL override. Used to route image-bearing requests
+ * away from a text-only default model without changing the task's model.
+ */
+export async function getVisionCapableModel(
+  excludeModel?: BytebotAgentModel | null,
+): Promise<BytebotAgentModel | null> {
+  const availableModels = await getAvailableModels();
+  const preferredName = process.env.BYTEBOT_VISION_MODEL?.trim();
+
+  const isExcluded = (candidate: BytebotAgentModel): boolean =>
+    Boolean(
+      excludeModel &&
+        candidate.provider === excludeModel.provider &&
+        candidate.name === excludeModel.name,
+    );
+
+  if (preferredName) {
+    const preferred = availableModels.find(
+      (candidate) =>
+        (candidate.name === preferredName ||
+          candidate.title === preferredName) &&
+        isVisionCapableModel(candidate) &&
+        !isExcluded(candidate),
+    );
+    if (preferred) {
+      return preferred;
+    }
+  }
+
+  const visionModels = availableModels.filter(
+    (candidate) => isVisionCapableModel(candidate) && !isExcluded(candidate),
+  );
+
+  if (visionModels.length === 0) {
+    return null;
+  }
+
+  return [...visionModels].sort((left, right) => {
+    const scoreDelta =
+      getModelExecutionScore(right) - getModelExecutionScore(left);
+    if (scoreDelta !== 0) {
+      return scoreDelta;
+    }
+
+    return left.title.localeCompare(right.title);
+  })[0];
 }
 
 function dedupeModels(models: BytebotAgentModel[]): BytebotAgentModel[] {

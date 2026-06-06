@@ -47,6 +47,8 @@ import {
 import { ProxyService } from '../proxy/proxy.service';
 import {
   getFallbackModels,
+  getVisionCapableModel,
+  isVisionCapableModel,
   markModelTemporarilyUnavailable,
   resolveExecutableModel,
 } from '../models/available-models';
@@ -233,6 +235,32 @@ export class AgentProcessor {
   private flattenMessageContent(messages: Message[]): MessageContentBlock[] {
     return messages.flatMap(
       (message) => (message.content as MessageContentBlock[]) ?? [],
+    );
+  }
+
+  private blockContainsImage(block: MessageContentBlock): boolean {
+    if (block.type === MessageContentType.Image) {
+      return true;
+    }
+
+    if (block.type === MessageContentType.ToolResult) {
+      return (block.content ?? []).some(
+        (nested) => nested.type === MessageContentType.Image,
+      );
+    }
+
+    if (block.type === MessageContentType.UserAction) {
+      return (block.content ?? []).some(
+        (nested) => nested.type === MessageContentType.Image,
+      );
+    }
+
+    return false;
+  }
+
+  private messagesContainImages(messages: Message[]): boolean {
+    return this.flattenMessageContent(messages).some((block) =>
+      this.blockContainsImage(block),
     );
   }
 
@@ -885,15 +913,44 @@ export class AgentProcessor {
 
       let agentResponse: BytebotAgentResponse;
 
-      const service = this.services[model.provider];
+      // Capability-based routing: the configured default model may be text-only
+      // (e.g. deepseek-v4-flash). When the outgoing context contains screenshots,
+      // route just that call to a vision-capable model so visual tasks (browser /
+      // TikTok research) can actually read the screen. Pure text steps keep using
+      // the configured default model, and the task's own model is left unchanged.
+      let effectiveModel = model;
+      if (
+        this.messagesContainImages(messages) &&
+        !isVisionCapableModel(model)
+      ) {
+        const visionModel = await getVisionCapableModel(model);
+        if (
+          visionModel &&
+          !(
+            visionModel.provider === model.provider &&
+            visionModel.name === model.name
+          )
+        ) {
+          this.logger.warn(
+            `Routing image-bearing request away from text-only model ${model.provider}:${model.name} to vision model ${visionModel.provider}:${visionModel.name}`,
+          );
+          effectiveModel = visionModel;
+        } else if (!visionModel) {
+          this.logger.warn(
+            `Context contains images but no vision-capable model is available; proceeding with text-only model ${model.provider}:${model.name}`,
+          );
+        }
+      }
+
+      const service = this.services[effectiveModel.provider];
       if (!service) {
-        const errorMessage = `No service found for model provider: ${model.provider}. Available providers: ${Object.keys(this.services).join(', ')}`;
+        const errorMessage = `No service found for model provider: ${effectiveModel.provider}. Available providers: ${Object.keys(this.services).join(', ')}`;
         this.logger.error(`CRITICAL ERROR: ${errorMessage}`);
         await this.failTask(taskId, errorMessage);
         return;
       }
 
-      this.logger.log(`Using service for provider: ${model.provider}`);
+      this.logger.log(`Using service for provider: ${effectiveModel.provider}`);
 
       try {
         this.logger.log(`Calling service.generateMessage for task ${taskId}`);
@@ -901,7 +958,7 @@ export class AgentProcessor {
           service,
           AGENT_SYSTEM_PROMPT,
           messages,
-          model.name,
+          effectiveModel.name,
           true,
         );
         this.logger.log(`Service call successful for task ${taskId}`);
@@ -913,7 +970,7 @@ export class AgentProcessor {
         const errorMessage = `Service call failed for task ${taskId}: ${error.message}`;
         this.logger.error(`CRITICAL ERROR: ${errorMessage}`);
         this.logger.error(`Error details: ${JSON.stringify(error)}`);
-        this.registerServiceFailure(model, error);
+        this.registerServiceFailure(effectiveModel, error);
         if (this.isRetryableServiceError(error)) {
           const retried = await this.retryTaskWithFallbackModel(task);
           if (retried) {
