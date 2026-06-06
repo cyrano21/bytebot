@@ -29,19 +29,6 @@ const DISABLED_PROXY_MODELS = new Set([
   'openrouter-mistral-small-vision-free',
 ]);
 
-function getDisabledProxyModels(): Set<string> {
-  const disabledFromEnv = (process.env.BYTEBOT_DISABLED_PROXY_MODELS ?? '')
-    .split(',')
-    .map((model) => model.trim().toLowerCase())
-    .filter(Boolean);
-
-  return new Set([...DISABLED_PROXY_MODELS, ...disabledFromEnv]);
-}
-
-function directGoogleModelsDisabled(): boolean {
-  return process.env.BYTEBOT_DISABLE_DIRECT_GOOGLE_MODELS === 'true';
-}
-
 function isLikelyAnthropicApiKey(apiKey?: string | null): boolean {
   const normalizedKey = apiKey?.trim();
   return Boolean(normalizedKey && normalizedKey.startsWith('sk-ant-'));
@@ -96,7 +83,7 @@ function isLikelyDeepSeekApiKey(apiKey?: string | null): boolean {
 function hasRuntimeSupportForProxyModel(modelName: string): boolean {
   const normalizedName = modelName.toLowerCase();
 
-  if (getDisabledProxyModels().has(normalizedName)) {
+  if (DISABLED_PROXY_MODELS.has(normalizedName)) {
     return false;
   }
 
@@ -333,10 +320,7 @@ function getConfiguredModels(): BytebotAgentModel[] {
       ? ANTHROPIC_MODELS
       : []),
     ...(isLikelyOpenAIApiKey(process.env.OPENAI_API_KEY) ? OPENAI_MODELS : []),
-    ...(!directGoogleModelsDisabled() &&
-    isLikelyGeminiApiKey(process.env.GEMINI_API_KEY)
-      ? GOOGLE_MODELS
-      : []),
+    ...(isLikelyGeminiApiKey(process.env.GEMINI_API_KEY) ? GOOGLE_MODELS : []),
     ...customModels,
   ]);
 }
