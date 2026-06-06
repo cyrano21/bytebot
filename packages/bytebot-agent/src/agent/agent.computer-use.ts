@@ -694,7 +694,7 @@ function normalizeResearchQuery(taskDescription: string): string {
 
 function isTikTokTopProductsResearch(query: string): boolean {
   return (
-    /tiktok/i.test(query) &&
+    /tik\s*tok/i.test(query) &&
     /(shop|product|products|produit|produits|best[- ]?selling|top product|top products|trending|trend|gagnant|winning|vendeu|vente)/i.test(
       query,
     )
@@ -725,7 +725,7 @@ function buildResearchTarget(taskDescription: string): {
   }
 
   const searchQuery =
-    /tiktok/i.test(query) && !/site:/i.test(query)
+    /tik\s*tok/i.test(query) && !/site:/i.test(query)
       ? `${query} site:tiktok.com`
       : query;
 

@@ -60,6 +60,7 @@ const BROWSER_COMPLETION_REMINDER_MARKER =
 const MAX_BROWSER_TOOL_ACTIONS_BEFORE_COMPLETION_REMINDER = 10;
 const MAX_BROWSER_TOOL_ACTIONS_BEFORE_REVIEW = 24;
 const MAX_BROWSER_TEXT_ONLY_REMINDERS_BEFORE_REVIEW = 12;
+const MAX_BROWSER_DOMAIN_VALIDATION_REMINDERS_BEFORE_REVIEW = 5;
 const HOSTNAME_VALIDATION_TIMEOUT_MS = 3_000;
 
 @Injectable()
@@ -931,7 +932,7 @@ export class AgentProcessor {
 
         if (invalidHosts.length > 0) {
           const invalidHostSummary = invalidHosts.join(', ');
-          const validationReminderAlreadySent = this.hasMarker(
+          const validationReminderCount = this.countMarker(
             messages,
             BROWSER_DOMAIN_VALIDATION_MARKER,
           );
@@ -940,12 +941,19 @@ export class AgentProcessor {
             `Task ${taskId} draft mentioned unresolved domains: ${invalidHostSummary}`,
           );
 
-          if (!validationReminderAlreadySent) {
+          if (
+            validationReminderCount <
+            MAX_BROWSER_DOMAIN_VALIDATION_REMINDERS_BEFORE_REVIEW
+          ) {
+            const officialHostHint = /tik\s*tok/i.test(task.description)
+              ? ' For this TikTok task, use tiktok.com or visible TikTok search results only; do not use lookalike or guessed TikTok-related domains.'
+              : '';
+
             await this.messagesService.create({
               content: [
                 {
                   type: MessageContentType.Text,
-                  text: `${BROWSER_DOMAIN_VALIDATION_MARKER} The previous draft mentioned domains that do not resolve: ${invalidHostSummary}. Continue browsing and replace them with websites whose exact hostname is visible on-screen or loads successfully. Do not invent, normalize, or guess domains.`,
+                  text: `${BROWSER_DOMAIN_VALIDATION_MARKER} The previous draft mentioned domains that do not resolve: ${invalidHostSummary}.${officialHostHint} Continue browsing with a real computer_* tool call and replace them with websites whose exact hostname is visible on-screen or loads successfully. Do not invent, normalize, or guess domains.`,
                 },
               ],
               role: Role.USER,
