@@ -1,8 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 type TikTokComment = {
   videoUrl?: string;
-  videoId?: string;
   author?: string;
   text: string;
   likes?: number;
@@ -36,61 +41,25 @@ export class TikTokResearchService {
       return null;
     }
 
-    const webhookUrl = process.env.BYTEBOT_TIKTOK_SCRAPER_URL?.trim();
-    if (!webhookUrl) {
-      return null;
-    }
-
     const hashtag = this.extractHashtag(description) ?? 'e-commerce';
     const maxComments = this.extractRequestedCount(description) ?? 20;
     const maxVideos = this.extractRequestedVideoCount(description) ?? 5;
 
     try {
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(process.env.BYTEBOT_TIKTOK_SCRAPER_API_KEY
-            ? {
-                Authorization: `Bearer ${process.env.BYTEBOT_TIKTOK_SCRAPER_API_KEY}`,
-              }
-            : {}),
-        },
-        body: JSON.stringify({
-          description,
-          hashtag,
-          maxComments,
-          maxVideos,
-          sort: 'most_viewed',
-        }),
-        signal: AbortSignal.timeout(45_000),
-      });
-
-      if (!response.ok) {
-        this.logger.warn(
-          `TikTok scraper returned ${response.status}: ${await response.text()}`,
-        );
-        return null;
-      }
-
-      const payload = await response.json();
-      const comments = this.normalizeComments(payload).slice(0, maxComments);
-      if (comments.length === 0) {
-        return null;
-      }
-
-      return {
+      const result = await this.collectWithMarketResearchScript(
         hashtag,
-        comments,
-        source: webhookUrl,
-        warning:
-          comments.length < maxComments
-            ? `Only ${comments.length}/${maxComments} comments were returned by the TikTok scraper.`
-            : undefined,
-      };
+        maxComments,
+        maxVideos,
+      );
+
+      if (!result || result.comments.length === 0) {
+        return null;
+      }
+
+      return result;
     } catch (error) {
       this.logger.warn(
-        `TikTok scraper failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Local TikTok market research failed: ${error instanceof Error ? error.message : String(error)}`,
       );
       return null;
     }
@@ -104,7 +73,7 @@ export class TikTokResearchService {
         const parts = [
           `${index + 1}. ${comment.text}`,
           comment.author ? `auteur: ${comment.author}` : null,
-          comment.videoUrl ?? comment.videoId ?? null,
+          comment.videoUrl ?? null,
           typeof comment.likes === 'number' ? `${comment.likes} likes` : null,
         ].filter(Boolean);
 
@@ -117,6 +86,76 @@ export class TikTokResearchService {
     }
 
     return lines.join('\n');
+  }
+
+  private async collectWithMarketResearchScript(
+    hashtag: string,
+    maxComments: number,
+    maxVideos: number,
+  ): Promise<TikTokResearchResult | null> {
+    const scriptPath = join(process.cwd(), 'python', 'market_research.py');
+    if (!existsSync(scriptPath)) {
+      this.logger.warn(`TikTok market research script not found: ${scriptPath}`);
+      return null;
+    }
+
+    const pythonBinary = process.env.BYTEBOT_PYTHON_BIN?.trim() || 'python3';
+    const { stdout, stderr } = await execFileAsync(
+      pythonBinary,
+      [
+        scriptPath,
+        'hashtag-comments',
+        hashtag,
+        String(maxComments),
+        String(maxVideos),
+      ],
+      {
+        timeout: Number(process.env.BYTEBOT_TIKTOK_SCRAPER_TIMEOUT_MS ?? 180_000),
+        maxBuffer: 1024 * 1024 * 4,
+        env: {
+          ...process.env,
+          PYTHONUNBUFFERED: '1',
+        },
+      },
+    );
+
+    const stderrText = String(stderr);
+    if (stderrText.trim()) {
+      this.logger.debug(`TikTok market research stderr: ${stderrText.trim()}`);
+    }
+
+    const payload = this.parseJsonPayload(String(stdout));
+    const comments = this.normalizeComments(payload).slice(0, maxComments);
+    if (comments.length === 0) {
+      return null;
+    }
+
+    return {
+      hashtag: payload?.hashtag ?? hashtag,
+      comments,
+      source: 'local:packages/bytebot-agent/python/market_research.py',
+      warning:
+        comments.length < maxComments
+          ? `Only ${comments.length}/${maxComments} comments were recovered locally.`
+          : undefined,
+    };
+  }
+
+  private parseJsonPayload(stdout: string): any {
+    const lines = stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    for (const line of [...lines].reverse()) {
+      try {
+        return JSON.parse(line);
+      } catch {
+        // Ignore logging lines and keep looking for the JSON result.
+      }
+    }
+
+    throw new Error('TikTok market research script did not return JSON');
   }
 
   private normalizeComments(payload: any): TikTokComment[] {
@@ -134,11 +173,13 @@ export class TikTokResearchService {
     return rawComments
       .map((comment): TikTokComment | null => {
         const text =
-          comment?.text ??
-          comment?.comment ??
-          comment?.comment_text ??
-          comment?.content ??
-          comment?.reply_comment?.text;
+          typeof comment === 'string'
+            ? comment
+            : comment?.text ??
+              comment?.comment ??
+              comment?.comment_text ??
+              comment?.content ??
+              comment?.reply_comment?.text;
 
         if (typeof text !== 'string' || !text.trim()) {
           return null;
@@ -152,7 +193,6 @@ export class TikTokResearchService {
             comment?.user?.unique_id ??
             comment?.user_name,
           videoUrl: comment?.videoUrl ?? comment?.video_url ?? comment?.url,
-          videoId: comment?.videoId ?? comment?.video_id ?? comment?.aweme_id,
           likes:
             typeof comment?.likes === 'number'
               ? comment.likes
