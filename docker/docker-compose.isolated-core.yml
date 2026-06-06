@@ -55,6 +55,7 @@ services:
       - "9991"
     environment:
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/bytebotdb
+      - NODE_OPTIONS=--dns-result-order=ipv4first
       - BYTEBOT_DESKTOP_BASE_URL=${BYTEBOT_DESKTOP_BASE_URL:?Set the remote desktop worker base URL}
       - BYTEBOT_LLM_PROXY_URL=${BYTEBOT_LLM_PROXY_URL:-http://bytebot-llm-proxy:4000}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -92,6 +93,7 @@ services:
       - "9992"
     environment:
       - NODE_ENV=production
+      - NODE_OPTIONS=--dns-result-order=ipv4first
       - BYTEBOT_AGENT_BASE_URL=${BYTEBOT_AGENT_BASE_URL:-http://bytebot-agent:9991}
       - BYTEBOT_DESKTOP_VNC_URL=${BYTEBOT_DESKTOP_VNC_URL:?Set the remote desktop worker VNC URL}
       - PORT=9992
