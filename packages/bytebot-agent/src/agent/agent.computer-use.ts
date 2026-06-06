@@ -409,6 +409,9 @@ async function typeKeys(input: {
   delay?: number;
 }): Promise<void> {
   const { keys, delay } = input;
+  if (!Array.isArray(keys) || keys.length === 0) {
+    throw new Error('computer_type_keys requires a non-empty keys array');
+  }
   console.log(`Typing keys: ${keys}`);
 
   try {
@@ -432,6 +435,9 @@ async function pressKeys(input: {
   press: Press;
 }): Promise<void> {
   const { keys, press } = input;
+  if (!Array.isArray(keys) || keys.length === 0) {
+    throw new Error('computer_press_keys requires a non-empty keys array');
+  }
   console.log(`Pressing keys: ${keys}`);
 
   try {
@@ -692,6 +698,22 @@ function normalizeResearchQuery(taskDescription: string): string {
   return query || 'web research';
 }
 
+function extractTikTokHashtag(query: string): string | null {
+  const explicitHashMatch = query.match(/#([\p{L}\p{N}_-]+)/iu);
+  if (explicitHashMatch?.[1]) {
+    return explicitHashMatch[1];
+  }
+
+  const hashtagPhraseMatch = query.match(
+    /\bhashtag\s+([\p{L}\p{N}_-]+)/iu,
+  );
+  if (hashtagPhraseMatch?.[1]) {
+    return hashtagPhraseMatch[1];
+  }
+
+  return null;
+}
+
 function isTikTokTopProductsResearch(query: string): boolean {
   return (
     /tik\s*tok/i.test(query) &&
@@ -716,6 +738,18 @@ function buildResearchTarget(taskDescription: string): {
   }
 
   const query = normalizeResearchQuery(taskDescription);
+  const tiktokHashtag = /tik\s*tok/i.test(query)
+    ? extractTikTokHashtag(query)
+    : null;
+  if (tiktokHashtag) {
+    const normalizedHashtag = tiktokHashtag.replace(/^#+/, '');
+    return {
+      mode: 'url',
+      targetUrl: `https://www.tiktok.com/tag/${encodeURIComponent(normalizedHashtag)}`,
+      query: `TikTok hashtag #${normalizedHashtag}`,
+    };
+  }
+
   if (isTikTokTopProductsResearch(query)) {
     return {
       mode: 'url',
