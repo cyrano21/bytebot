@@ -91,24 +91,39 @@ export class TasksService {
       `Creating new task with description: ${description}`,
     );
 
-    const requestedModel =
-      (createTaskDto.model as BytebotAgentModel | undefined) ?? null;
-    const { model: resolvedModel, usedFallback } =
-      await resolveExecutableModel(requestedModel);
-    if (!resolvedModel) {
-      throw new BadRequestException(
-        'No AI model is configured or currently available for task execution',
-      );
-    }
-
-    if (usedFallback && requestedModel) {
-      this.logger.warn(
-        `Requested model ${requestedModel.provider}:${requestedModel.name} is unavailable; falling back to ${resolvedModel.provider}:${resolvedModel.name}`,
-      );
-    }
-
     const tikTokResearchResult =
       await this.tikTokResearchService.collectComments(description);
+    const requestedModel =
+      (createTaskDto.model as BytebotAgentModel | undefined) ?? null;
+    let resolvedModel: BytebotAgentModel | null = requestedModel;
+    let usedFallback = false;
+
+    if (tikTokResearchResult && !resolvedModel) {
+      resolvedModel = {
+        provider: 'custom',
+        name: 'tiktok-market-research-local',
+        title: 'TikTok Market Research Local',
+        contextWindow: 0,
+      };
+    }
+
+    if (!tikTokResearchResult) {
+      const resolved = await resolveExecutableModel(requestedModel);
+      resolvedModel = resolved.model;
+      usedFallback = resolved.usedFallback;
+
+      if (!resolvedModel) {
+        throw new BadRequestException(
+          'No AI model is configured or currently available for task execution',
+        );
+      }
+
+      if (usedFallback && requestedModel) {
+        this.logger.warn(
+          `Requested model ${requestedModel.provider}:${requestedModel.name} is unavailable; falling back to ${resolvedModel.provider}:${resolvedModel.name}`,
+        );
+      }
+    }
 
     const task = await this.prisma.$transaction(async (prisma) => {
       // Create the task first
