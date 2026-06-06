@@ -149,6 +149,19 @@ model_list:
       api_key: os.environ/DEEPSEEK_API_KEY
       drop_params: true
 
+  # DeepSeek V4 via API native (abonnement). Text-only (pas de vision):
+  # adapté au scraper TikTok local / orchestration, pas au clic visuel pur.
+  - model_name: deepseek-v4-flash
+    litellm_params:
+      model: deepseek/deepseek-v4-flash
+      api_key: os.environ/DEEPSEEK_API_KEY
+      drop_params: true
+  - model_name: deepseek-v4-pro
+    litellm_params:
+      model: deepseek/deepseek-v4-pro
+      api_key: os.environ/DEEPSEEK_API_KEY
+      drop_params: true
+
   # Modèles xAI Grok (gratuits et ultra-puissants)
   - model_name: grok-2
     litellm_params:
